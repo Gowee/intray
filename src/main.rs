@@ -4,6 +4,8 @@ extern crate rust_embed;
 extern crate mime_guess;
 extern crate futures;
 extern crate chrono;
+extern crate percent_encoding;
+extern crate encoding;
 
 use std::fs;
 use std::io::Write;
@@ -11,10 +13,15 @@ use std::io::Write;
 use futures::future;
 use futures::{Future, Stream};
 use actix_web::{server, error, Error, multipart, App, FutureResponse, HttpRequest, HttpResponse,
-                HttpMessage};
-use actix_web::dev::Handler;
+                HttpMessage, Responder};
+use actix_web::dev::{Handler, Payload};
 use actix_web::http::Method;
+use actix_web::http::header::{ContentDisposition, DispositionType, DispositionParam};
+use actix_web::http::header::Charset;
 use mime_guess::guess_mime_type;
+use percent_encoding::percent_decode;
+use encoding::label::encoding_from_whatwg_label;
+use encoding::DecoderTrap;
 
 #[derive(RustEmbed)]
 #[folder = "web/"]
@@ -37,7 +44,7 @@ impl StaticFilesHandler {
 impl<S> Handler<S> for StaticFilesHandler {
     type Result = HttpResponse;
 
-    fn handle(&mut self, req: HttpRequest<S>) -> Self::Result {
+    fn handle(&self, req: &HttpRequest<S>) -> Self::Result {
         let path = req.path();
         if !path.starts_with(&self.prefix) {
             return HttpResponse::NotFound().finish();
@@ -62,18 +69,53 @@ fn default(_req: HttpRequest) -> HttpResponse {
     handle_embedded_file("upload.html")
 }
 
-// Copied from https://github.com/actix/examples/blob/master/multipart/src/main.rs, almost verbatim.
-// Too obscure for me to understand now.
-pub fn save_file(field: multipart::Field<HttpRequest>) -> Box<Future<Item = i64, Error = Error>> {
-    // TODO:: handle overwriting issues; handle file name encoding
-    println!("{:?}", field.headers());
-    println!("{:?}", field.headers().get("filename"));
-    let file_name = match field.headers().get("filename") {
-        Some(file_name) => String::from_utf8_lossy(file_name.as_bytes()).into_owned(), 
-        None => chrono::Local::now().format("%Y-%m-%d_%H:%M:%S").to_string(),
-    };
+fn get_file_name_from_multipart_field(field: &multipart::Field<Payload>) -> Option<String> {
+    field.content_disposition()
+         .and_then(|ContentDisposition { disposition, parameters }| {
+             match disposition {
+                 DispositionType::Ext(ref dt) if dt == "form-data" => {
+                    let mut field_name = None;
+                    let mut file_name = None;
+                    for param in parameters.iter() {
+                        match param {
+                            DispositionParam::Ext(ref dp, ref name) if dp == "name" =>
+                            {
+                                field_name = Some(name.to_owned());
+                            },
+                            DispositionParam::Filename(charset, _, content) => {
+                                file_name = encoding_from_whatwg_label(&charset.to_string())
+                                    .and_then(|codec| {
+                                        let raw_file_name = codec.decode(content, DecoderTrap::Replace).expect("DecoderTrap::Replace is used");
+                                        Some(raw_file_name.replace("\\\"", "\"").replace("/", "_"))
+                                        })
+                            },
+                            _ => ()
+                        }
+                    }
+                    match field_name {
+                        Some(ref name) if name == "file" => {
+                            file_name.or(Some(String::from("Unnamed_file.temp"))) // TODO: Generating unique file names
+                            // chrono::Local::now().format("%Y-%m-%d_%H:%M:%S").to_string()
+                        },
+                        _ => None
+                    }
+                 },
+                 _ => None
+             }
+         })
+}
 
-    println!("Receiving file: {}", file_name);
+// Copied from https://github.com/actix/examples/blob/master/multipart/src/main.rs.
+// Too obscure for me to understand now.
+pub fn save_file(field: multipart::Field<Payload>) -> Box<Future<Item = i64, Error = Error>> {
+    // TODO:: handle overwriting issues; handle file name encoding
+    println!("{:?}", field.content_disposition()); // field.content_disposition()
+    // .filter(|param| match param { DispositionParam::Filename(_, _, _) => true, _ => false })
+    let file_name = match get_file_name_from_multipart_field(&field) {
+        Some(f) => f,
+        None => return Box::new(future::ok(-1)),
+    };
+    println!("File name: {:}", file_name);
     let mut file = match fs::File::create(file_name) {
         Ok(file) => file,
         Err(e) => return Box::new(future::err(error::ErrorInternalServerError(e))),
@@ -92,17 +134,17 @@ pub fn save_file(field: multipart::Field<HttpRequest>) -> Box<Future<Item = i64,
             .map_err(|e| {
                 eprintln!("save_file failed, {:?}", e);
                 error::ErrorInternalServerError(e)
-            }),
+            })
     )
 }
 
 pub fn handle_multipart_item(
-    item: multipart::MultipartItem<HttpRequest>,
+    item: multipart::MultipartItem<Payload>,
 ) -> Box<Stream<Item = i64, Error = Error>> {
     match item {
         multipart::MultipartItem::Field(field) => Box::new(save_file(field).into_stream()),
         multipart::MultipartItem::Nested(mp) => Box::new(
-            mp.map_err(error::ErrorInternalServerError)
+            mp.map_err(|e| error::ErrorInternalServerError(e))
                 .map(handle_multipart_item)
                 .flatten(),
         ),
@@ -110,18 +152,16 @@ pub fn handle_multipart_item(
 }
 
 pub fn upload(req: HttpRequest) -> FutureResponse<HttpResponse> {
-    Box::new(
-        req.multipart()
-            .map_err(error::ErrorInternalServerError)
-            .map(handle_multipart_item)
-            .flatten()
-            .collect()
-            .map(|sizes| HttpResponse::Ok().json(sizes))
-            .map_err(|e| {
-                eprintln!("failed: {}", e);
-                e
-            }),
-    )
+    Box::new(req.multipart()
+        .map_err(|e| error::ErrorInternalServerError(e))
+        .map(handle_multipart_item)
+        .flatten()
+        .collect()
+        .map(|sizes| HttpResponse::Ok().json(sizes))
+        .map_err(|e| {
+            eprintln!("failed: {}", e);
+            e
+        }))
 }
 
 fn main() {
