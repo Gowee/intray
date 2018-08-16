@@ -6,9 +6,14 @@ authors = ["Hung-I Wang <whygowe@gmail.com>"]
 [dependencies]
 #actix-web = "0.6"
 actix-web = { git = "https://github.com/actix/actix-web.git" }
+# actix-web = { path = "../temp/actix-web" }
 rust-embed = "3.0"
 mime_guess = "2.0.0-alpha.6"
 futures = "0.1"
 chrono = "0.4"
 percent-encoding = "1.0"
 encoding = "0.2"
+env_logger = "0.5"
+log = "0.4"
+structopt = "0.2"
+lazy_static = "1"

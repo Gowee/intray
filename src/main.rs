@@ -1,27 +1,43 @@
+#![feature(extern_prelude)]
+
 extern crate actix_web;
 #[macro_use]
 extern crate rust_embed;
-extern crate mime_guess;
-extern crate futures;
 extern crate chrono;
-extern crate percent_encoding;
 extern crate encoding;
+extern crate futures;
+extern crate mime_guess;
+extern crate percent_encoding;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+#[macro_use]
+extern crate structopt;
+#[macro_use]
+extern crate lazy_static;
 
-use std::fs;
+use std::env;
+use std::ffi::{OsStr, OsString};
+use std::fs::{File, OpenOptions};
+use std::io;
 use std::io::Write;
+use std::path::PathBuf;
+use std::str::FromStr;
 
-use futures::future;
-use futures::{Future, Stream};
-use actix_web::{server, error, Error, multipart, App, FutureResponse, HttpRequest, HttpResponse,
-                HttpMessage, Responder};
 use actix_web::dev::{Handler, Payload};
 use actix_web::http::Method;
-use actix_web::http::header::{ContentDisposition, DispositionType, DispositionParam};
-use actix_web::http::header::Charset;
-use mime_guess::guess_mime_type;
-use percent_encoding::percent_decode;
-use encoding::label::encoding_from_whatwg_label;
-use encoding::DecoderTrap;
+use actix_web::{
+    error, middleware, multipart, server, App, Error, FutureResponse, HttpMessage, HttpRequest,
+    HttpResponse,
+};
+use futures::future;
+use futures::{Future, Stream};
+use mime_guess::{get_mime_extensions, guess_mime_type, octet_stream, Mime};
+#[allow(unused_imports)]
+use structopt::StructOpt;
+
+mod opt;
+use opt::Opt;
 
 #[derive(RustEmbed)]
 #[folder = "web/"]
@@ -56,11 +72,9 @@ impl<S> Handler<S> for StaticFilesHandler {
 
 fn handle_embedded_file(path: &str) -> HttpResponse {
     match Asset::get(path) {
-        Some(content) => {
-            HttpResponse::Ok()
-                .content_type(guess_mime_type(path).as_ref())
-                .body(content)
-        }
+        Some(content) => HttpResponse::Ok()
+            .content_type(guess_mime_type(path).as_ref())
+            .body(content),
         None => HttpResponse::NotFound().body("404 Not Found"),
     }
 }
@@ -69,72 +83,89 @@ fn default(_req: HttpRequest) -> HttpResponse {
     handle_embedded_file("upload.html")
 }
 
-fn get_file_name_from_multipart_field(field: &multipart::Field<Payload>) -> Option<String> {
-    field.content_disposition()
-         .and_then(|ContentDisposition { disposition, parameters }| {
-             match disposition {
-                 DispositionType::Ext(ref dt) if dt == "form-data" => {
-                    let mut field_name = None;
-                    let mut file_name = None;
-                    for param in parameters.iter() {
-                        match param {
-                            DispositionParam::Ext(ref dp, ref name) if dp == "name" =>
-                            {
-                                field_name = Some(name.to_owned());
-                            },
-                            DispositionParam::Filename(charset, _, content) => {
-                                file_name = encoding_from_whatwg_label(&charset.to_string())
-                                    .and_then(|codec| {
-                                        let raw_file_name = codec.decode(content, DecoderTrap::Replace).expect("DecoderTrap::Replace is used");
-                                        Some(raw_file_name.replace("\\\"", "\"").replace("/", "_"))
-                                        })
-                            },
-                            _ => ()
-                        }
-                    }
-                    match field_name {
-                        Some(ref name) if name == "file" => {
-                            file_name.or(Some(String::from("Unnamed_file.temp"))) // TODO: Generating unique file names
-                            // chrono::Local::now().format("%Y-%m-%d_%H:%M:%S").to_string()
-                        },
-                        _ => None
-                    }
-                 },
-                 _ => None
-             }
-         })
+fn create_file<T: AsRef<OsStr>, U: AsRef<OsStr>>(
+    file_name: T,
+    ext_hint: Option<U>,
+) -> io::Result<File> {
+    let path = PathBuf::from(file_name.as_ref());
+    let stem = path.file_stem().unwrap_or(OsStr::new("UnnamedFile"));
+    let ext = path.extension().or(ext_hint.as_ref().map(|i| i.as_ref()));
+
+    let mut count = 0;
+    loop {
+        let file_name = if count == 0 {
+            let mut s = OsString::from(stem);
+            if let Some(ext) = ext {
+                s.push(".");
+                s.push(ext);
+            }
+            s
+        } else {
+            let mut s = OsString::from(stem);
+            s.push("_");
+            s.push(count.to_string());
+            if let Some(ext) = ext {
+                s.push(".");
+                s.push(ext);
+            }
+            s
+        };
+        let result = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(OPT.dir().join(file_name));
+        match result {
+            Err(ref e) if e.kind() == io::ErrorKind::AlreadyExists => (),
+            other => {
+                return other;
+            }
+        }
+        count += 1;
+    }
 }
 
-// Copied from https://github.com/actix/examples/blob/master/multipart/src/main.rs.
-// Too obscure for me to understand now.
 pub fn save_file(field: multipart::Field<Payload>) -> Box<Future<Item = i64, Error = Error>> {
-    // TODO:: handle overwriting issues; handle file name encoding
-    println!("{:?}", field.content_disposition()); // field.content_disposition()
-    // .filter(|param| match param { DispositionParam::Filename(_, _, _) => true, _ => false })
-    let file_name = match get_file_name_from_multipart_field(&field) {
-        Some(f) => f,
-        None => return Box::new(future::ok(-1)),
+    let file_name = field.content_disposition().and_then(|cd| {
+        if cd.is_form_data() && cd.get_name() == Some("file") {
+            Some(
+                cd.get_filename()
+                    .map(|n| n.to_owned())
+                    .unwrap_or(String::from("UnnamedFile")),
+            )
+        } else {
+            None
+        }
+    });
+    let file = if let Some(file_name) = file_name {
+        create_file(
+            file_name,
+            get_mime_extensions(
+                &Mime::from_str(field.content_type().as_ref()).unwrap_or_else(|_| octet_stream()),
+            ).and_then(|el| el.first().map(|e| *e)),
+        )
+    } else {
+        return Box::new(future::ok(-1));
     };
-    println!("File name: {:}", file_name);
-    let mut file = match fs::File::create(file_name) {
+    let mut file = match file {
         Ok(file) => file,
         Err(e) => return Box::new(future::err(error::ErrorInternalServerError(e))),
     };
+    println!("Saving file: {:?}", file);
     Box::new(
         field
             .fold(0i64, move |acc, bytes| {
-                let rt = file.write_all(bytes.as_ref())
+                let rt = file
+                    .write_all(bytes.as_ref())
                     .map(|_| acc + bytes.len() as i64)
                     .map_err(|e| {
-                        eprintln!("file.write_all failed: {:?}", e);
+                        warn!("file.write_all failed: {:?}", e);
                         error::MultipartError::Payload(error::PayloadError::Io(e))
                     });
                 future::result(rt)
-            })
-            .map_err(|e| {
-                eprintln!("save_file failed, {:?}", e);
+            }).map_err(|e| {
+                warn!("Failed to save file: , erorr: {:?}", e);
                 error::ErrorInternalServerError(e)
-            })
+            }),
     )
 }
 
@@ -152,26 +183,38 @@ pub fn handle_multipart_item(
 }
 
 pub fn upload(req: HttpRequest) -> FutureResponse<HttpResponse> {
-    Box::new(req.multipart()
-        .map_err(|e| error::ErrorInternalServerError(e))
-        .map(handle_multipart_item)
-        .flatten()
-        .collect()
-        .map(|sizes| HttpResponse::Ok().json(sizes))
-        .map_err(|e| {
-            eprintln!("failed: {}", e);
-            e
-        }))
+    Box::new(
+        req.multipart()
+            .map_err(|e| error::ErrorInternalServerError(e))
+            .map(handle_multipart_item)
+            .flatten()
+            .collect()
+            .map(|sizes| HttpResponse::Ok().json(sizes))
+            .map_err(|e| {
+                warn!("Error: {}", e);
+                e
+            }),
+    )
+}
+
+lazy_static! {
+    static ref OPT: Opt = Opt::from_args();
 }
 
 fn main() {
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "actix_web=warn");
+    }
+    env_logger::init();
+
+    println!("Running at {}...", OPT.socket_addr());
     server::new(|| {
         App::new()
+            .middleware(middleware::Logger::default())
             .route("/", Method::GET, default)
             .handler("/assets", StaticFilesHandler::new(""))
             .route("/upload", Method::POST, upload)
-        //            .resource("/", |r| r.f(index))
-    }).bind("127.0.0.1:8088")
-        .unwrap()
-        .run();
+    }).bind(OPT.socket_addr())
+    .unwrap()
+    .run();
 }
