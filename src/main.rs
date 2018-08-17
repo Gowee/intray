@@ -37,7 +37,7 @@ use mime_guess::{get_mime_extensions, guess_mime_type, octet_stream, Mime};
 use structopt::StructOpt;
 
 mod opt;
-use opt::Opt;
+use opt::OPT;
 
 #[derive(RustEmbed)]
 #[folder = "web/"]
@@ -195,10 +195,6 @@ pub fn upload(req: HttpRequest) -> FutureResponse<HttpResponse> {
                 e
             }),
     )
-}
-
-lazy_static! {
-    static ref OPT: Opt = Opt::from_args();
 }
 
 fn main() {

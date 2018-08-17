@@ -34,3 +34,8 @@ impl Opt {
         SocketAddr::new(self.ip_addr, self.port)
     }
 }
+
+
+lazy_static! {
+    pub static ref OPT: Opt = Opt::from_args();
+}
