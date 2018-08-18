@@ -13,7 +13,7 @@ use structopt::clap::AppSettings::ColoredHelp;
 #[structopt(raw(setting = "ColoredHelp"))]
 pub struct Opt {
     /// IP address to bind on
-    #[structopt(short = "a", long="ip-addr", default_value = "0.0.0.0")]
+    #[structopt(short = "a", long="ip-addr", default_value = "::")]
     ip_addr: IpAddr,
     
     /// Directory to store received files
