@@ -28,7 +28,7 @@ use actix_web::dev::{Handler, Payload};
 use actix_web::http::Method;
 use actix_web::{
     error, middleware, multipart, server, App, Error, FutureResponse, HttpMessage, HttpRequest,
-    HttpResponse,
+    HttpResponse, Binary, Body
 };
 use futures::future;
 use futures::{Future, Stream};
@@ -74,14 +74,16 @@ fn handle_embedded_file(path: &str) -> HttpResponse {
     match Asset::get(path) {
         Some(content) => HttpResponse::Ok()
             .content_type(guess_mime_type(path).as_ref())
-            .body(content),
+            .body(Body::Binary(content.as_ref().to_vec().into())),
         None => HttpResponse::NotFound().body("404 Not Found"),
     }
 }
 
+
 fn default(_req: HttpRequest) -> HttpResponse {
     handle_embedded_file("upload.html")
 }
+
 
 fn create_file<T: AsRef<OsStr>, U: AsRef<OsStr>>(
     file_name: T,
@@ -150,7 +152,7 @@ pub fn save_file(field: multipart::Field<Payload>) -> Box<Future<Item = i64, Err
         Ok(file) => file,
         Err(e) => return Box::new(future::err(error::ErrorInternalServerError(e))),
     };
-    println!("Saving file: {:?}", file);
+    info!("Saving file: {:?}", file);
     Box::new(
         field
             .fold(0i64, move |acc, bytes| {
@@ -203,7 +205,7 @@ fn main() {
     }
     env_logger::init();
 
-    println!("Running at {}...", OPT.socket_addr());
+    info!("Running at {}...", OPT.socket_addr());
     server::new(|| {
         App::new()
             .middleware(middleware::Logger::default())

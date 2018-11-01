@@ -4,10 +4,8 @@ version = "0.1.0"
 authors = ["Hung-I Wang <whygowe@gmail.com>"]
 
 [dependencies]
-#actix-web = "0.6"
-actix-web = { git = "https://github.com/actix/actix-web.git" }
-# actix-web = { path = "../temp/actix-web" }
-rust-embed = "3.0"
+actix-web = "0.7"
+rust-embed = "4.0.0"
 mime_guess = "2.0.0-alpha.6"
 futures = "0.1"
 chrono = "0.4"
