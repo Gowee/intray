@@ -1,5 +1,3 @@
-#![feature(extern_prelude)]
-
 extern crate actix_web;
 #[macro_use]
 extern crate rust_embed;
@@ -11,7 +9,6 @@ extern crate percent_encoding;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-#[macro_use]
 extern crate structopt;
 #[macro_use]
 extern crate lazy_static;
@@ -28,7 +25,7 @@ use actix_web::dev::{Handler, Payload};
 use actix_web::http::Method;
 use actix_web::{
     error, middleware, multipart, server, App, Error, FutureResponse, HttpMessage, HttpRequest,
-    HttpResponse, Binary, Body
+    HttpResponse, Body
 };
 use futures::future;
 use futures::{Future, Stream};
@@ -201,7 +198,7 @@ pub fn upload(req: HttpRequest) -> FutureResponse<HttpResponse> {
 
 fn main() {
     if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "actix_web=warn");
+        env::set_var("RUST_LOG", "intray=info");
     }
     env_logger::init();
 
