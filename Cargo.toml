@@ -5,13 +5,13 @@ authors = ["Hung-I Wang <whygowe@gmail.com>"]
 
 [dependencies]
 actix-web = "0.7"
-rust-embed = "4.0.0"
+rust-embed = "4.3"
 mime_guess = "2.0.0-alpha.6"
 futures = "0.1"
 chrono = "0.4"
 percent-encoding = "1.0"
 encoding = "0.2"
-env_logger = "0.5"
+env_logger = "0.6"
 log = "0.4"
 structopt = "0.2"
 lazy_static = "1"
