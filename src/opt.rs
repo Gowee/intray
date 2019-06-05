@@ -1,28 +1,24 @@
 use std::net::{IpAddr, SocketAddr};
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
-use structopt::StructOpt;
 use structopt::clap::AppSettings::ColoredHelp;
-
+use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-#[structopt(
-    name = "intray",
-    about = "An simple intray to help receiving files.",
-)]
+#[structopt(name = "intray", about = "An simple intray to help receiving files.")]
 #[structopt(raw(setting = "ColoredHelp"))]
 pub struct Opt {
     /// IP address to bind on
-    #[structopt(short = "a", long="ip-addr", default_value = "::")]
+    #[structopt(short = "a", long = "ip-addr", default_value = "::")]
     ip_addr: IpAddr,
-    
+
     /// Directory to store received files
-    #[structopt(short = "d", long="dir", parse(from_os_str), default_value = "./")]
+    #[structopt(short = "d", long = "dir", parse(from_os_str), default_value = "./")]
     dir: PathBuf,
-    
+
     /// Port to bind on
     #[structopt(name = "PORT", default_value = "8080")]
-    port: u16
+    port: u16,
 }
 
 impl Opt {
@@ -34,7 +30,6 @@ impl Opt {
         SocketAddr::new(self.ip_addr, self.port)
     }
 }
-
 
 lazy_static! {
     pub static ref OPT: Opt = Opt::from_args();

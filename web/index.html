@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>InTray</title>
+</head>
+
+<body>
+    <section class="wrapper">
+        <h1 class="title">Upload files</h1>
+        <input type="file" multiple name="file" id="file-input" />
+        <button onclick=javascript:onUpload()>Upload</button>
+    </section>
+    <script>
+        function onUpload() {
+            const files = document.getElementById("file-input").files;
+            console.log(files);
+            fetch("/upload/start", )
+        }
+    </script>
+</body>
+</html>
