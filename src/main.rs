@@ -16,16 +16,14 @@ extern crate structopt;
 #[macro_use]
 extern crate lazy_static;
 
-use futures::compat::Executor01CompatExt;
-use futures::future::{Future, FutureExt};
-use futures::task::SpawnExt;
+use futures::{compat::Executor01CompatExt, future::FutureExt, task::SpawnExt};
 use mime_guess::guess_mime_type;
 use tide::{
     http::{response::Builder as ResponseBuilder, StatusCode},
     middleware::RequestLogger,
     App, Context, EndpointResult, Response,
 };
-use tokio::{executor::DefaultExecutor, prelude::Future as Future01, runtime::Runtime};
+use tokio::{prelude::Future as Future01, runtime::Runtime};
 
 use std::env;
 

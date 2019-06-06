@@ -1,24 +1,28 @@
-use futures::compat::{Future01CompatExt, Stream01CompatExt};
-use futures::{lock::Mutex, Future, Stream, StreamExt};
-use tokio::fs::{remove_file, File, OpenOptions};
-use tokio::io::write_all;
-use tokio::prelude::{Async as Async01, Stream as Stream01};
-use tokio::timer::{delay_queue::Key as DQKey, DelayQueue, Interval};
+use futures::{
+    compat::{Future01CompatExt, Stream01CompatExt},
+    lock::Mutex,
+    Future, Stream, StreamExt,
+};
+use tokio::{
+    fs::{remove_file, File, OpenOptions},
+    io::write_all,
+    prelude::{Async as Async01, Stream as Stream01},
+    timer::{delay_queue::Key as DQKey, DelayQueue, Interval},
+};
 use uuid::Uuid as UUID;
 
-use std::cmp::min;
-use std::collections::HashMap;
-use std::ffi::{OsStr, OsString};
-use std::io;
-use std::io::SeekFrom;
-use std::ops::Drop;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-//use std::str::FromStr;
+use std::{
+    cmp::min,
+    collections::HashMap,
+    ffi::{OsStr, OsString},
+    io::{self, SeekFrom},
+    ops::Drop,
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 
-use crate::bitmap::BitMap;
-use crate::opt::OPT;
+use crate::{bitmap::BitMap, opt::OPT};
 
 static EXPIRATION_INTERVAL: Duration = Duration::from_secs(15);
 
@@ -267,7 +271,7 @@ impl FileQueue {
         count
     }
 
-    pub async fn add_file(
+    pub fn add_file(
         &mut self,
         name: String,
         size: usize,
@@ -345,10 +349,11 @@ impl State {
     ) -> io::Result<UUID> {
         let (file, path) = create_file(&name, Option::<String>::None).await?;
         // create_file is a async job which may take much time, so here to acquire the lock only after that
-        let mut file_queue = self.file_queue.lock().await;
-        Ok(file_queue
-            .add_file(name, size, path, file, chunk_size)
-            .await)
+        Ok(self
+            .file_queue
+            .lock()
+            .await
+            .add_file(name, size, path, file, chunk_size))
     }
 
     pub async fn put_chunk(
@@ -357,8 +362,8 @@ impl State {
         chunk_number: usize,
         data: impl Stream<Item = io::Result<impl AsRef<[u8]>>> + Unpin,
     ) -> io::Result<usize> {
-        // drop file_queue lock immediately
         let result = {
+            // drop file_queue lock immediately
             let _file = self.file_queue.lock().await.acquire_file(file_token).unwrap(/*FIXME: pass error out*/);
             let mut file = _file.lock().await;
             // TODO: Does the lock/unlock sequence work as expected?
@@ -369,9 +374,7 @@ impl State {
         result
     }
 
-    pub fn finish_upload(&self) {
-        
-    }
+    pub fn finish_upload(&self) {}
 
     // cancel upload
 }
