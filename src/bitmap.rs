@@ -5,7 +5,9 @@ pub trait BitMap {
     /// Set the bit at the index `n`.
     fn set_bit(&mut self, n: usize);
     /// Check whether all bits of which the indices are *less than* `n` (exclusive) are set.
-    fn is_set_up_to(&mut self, n: usize) -> bool;
+    fn is_set_up_to(&self, n: usize) -> bool;
+    /// Get the index of the first bit that is unset.
+    fn first_unset(&self) -> usize;
     /// Truncate the BitMap: shrink the underlying storage as much as possible and make all bits of
     /// which the indices are greater than `n` unset.
     fn truncate_to_bit(&mut self, n: usize);
@@ -30,7 +32,7 @@ impl BitMap for Vec<u8> {
         self[offset_by_byte] = self[offset_by_byte] | (1 << offset_in_byte);
     }
 
-    fn is_set_up_to(&mut self, n: usize) -> bool {
+    fn is_set_up_to(&self, n: usize) -> bool {
         if n == 0 {
             return false;
         }
@@ -47,6 +49,16 @@ impl BitMap for Vec<u8> {
         let offset_in_byte = n % 8;
         let mask = (1 << ((offset_in_byte + 1) % 8)) - 1;
         self[offset_by_byte] & mask == mask
+    }
+
+    fn first_unset(&self) -> usize {
+        for (offset_by_byte, &byte) in self.iter().enumerate() {
+            if byte != 0xFF {
+                let offset_in_byte = (!byte).trailing_zeros() as usize;
+                return offset_by_byte * 8 + offset_in_byte;
+            }
+        }
+        return self.len() * 8;
     }
 
     fn truncate_to_bit(&mut self, n: usize) {
@@ -78,6 +90,30 @@ mod test {
     }
 
     #[test]
+    fn test_is_set_up_to() {
+        let mut bitmap: Vec<u8> = vec![];
+        for i in 0..=64 {
+            bitmap.set_bit(i);
+        }
+        assert!(bitmap.is_set_up_to(63));
+        assert!(bitmap.is_set_up_to(64));
+        assert!(bitmap.is_set_up_to(65));
+        assert!(!bitmap.is_set_up_to(66));
+    }
+
+    #[test]
+    fn test_first_unset() {
+        let idxs = [0, 3, 19, 1023, 1024, 65535, 65536, 65537];
+        for &idx in idxs.iter() {
+            let mut bitmap: Vec<u8> = vec![];
+            for i in 0..=idx {
+                bitmap.set_bit(i);
+            }
+            assert!(bitmap.first_unset() == idx + 1);
+        }
+    }
+
+    #[test]
     fn test_truncate() {
         let mut bitmap: Vec<u8> = vec![];
         bitmap.set_bit(64);
@@ -88,17 +124,5 @@ mod test {
         assert_eq!(bitmap.len(), 9);
         dbg!(bitmap[8]);
         assert_eq!(bitmap[8], 0b1);
-    }
-
-    #[test]
-    fn test_is_all_set() {
-        let mut bitmap: Vec<u8> = vec![];
-        for i in 0..=64 {
-            bitmap.set_bit(i);
-        }
-        assert!(bitmap.is_set_up_to(63));
-        assert!(bitmap.is_set_up_to(64));
-        assert!(bitmap.is_set_up_to(65));
-        assert!(!bitmap.is_set_up_to(66));
     }
 }
