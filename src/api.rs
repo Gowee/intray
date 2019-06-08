@@ -4,17 +4,17 @@ use uuid::Uuid as UUID;
 
 use crate::state::State;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct RequestUploadStart {
     file_name: String,
     file_size: usize,
     chunk_size: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 struct ResponseUploadStart {
     ok: bool,
-    token: Option<String>,
+    file_token: Option<String>,
     error: Option<String>,
 }
 
@@ -29,13 +29,13 @@ pub async fn handle_upload_start(mut ctx: Context<State>) -> EndpointResult {
             debug!("Upload starts with UUID: {}", token.to_hyphenated());
             Ok(response::json(ResponseUploadStart {
                 ok: true,
-                token: Some(token.to_hyphenated().to_string()),
+                file_token: Some(token.to_hyphenated().to_string()),
                 error: None,
             }))
         }
         Err(e) => Ok(response::json(ResponseUploadStart {
             ok: false,
-            token: None,
+            file_token: None,
             error: Some(e.to_string()),
         })),
     }
@@ -48,24 +48,53 @@ struct RequestUploadChunk {
     chunk_size: usize,
 } */
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 struct ResponseUploadChunk {
     ok: bool,
-    token: Option<String>,
+    error: Option<String>,
 }
 
 pub async fn handle_upload_chunk(mut ctx: Context<State>) -> EndpointResult {
     let file_token: UUID = ctx.param("file").client_err()?;
-    let chunk_no: usize = ctx.param("chunk").client_err()?;
+    let chunk_index: usize = ctx.param("chunk").client_err()?;
     let data = ctx.take_body();
-    // TODO: pass out error using json
-    ctx.state()
-        .put_chunk(file_token, chunk_no, data)
-        .await
-        .server_err()?;
-    Ok(response::json(vec![0]))
+    Ok(response::json(
+        match ctx.state().put_chunk(file_token, chunk_index, data).await {
+            Ok(_) => ResponseUploadChunk {
+                ok: true,
+                error: None,
+            },
+            Err(e) => ResponseUploadChunk {
+                ok: false,
+                error: Some(e.to_string()),
+            },
+        },
+    ))
 }
 
-pub async fn handle_upload_end(_ctx: Context<State>) -> EndpointResult {
-    Ok(response::json(vec![0]))
+#[derive(Debug, Deserialize)]
+struct RequestUploadFinish {
+    file_token: UUID,
+}
+
+#[derive(Debug, Serialize)]
+struct ResponseUploadFinish {
+    ok: bool,
+    error: Option<String>,
+}
+
+pub async fn handle_upload_finish(mut ctx: Context<State>) -> EndpointResult {
+    let req: RequestUploadFinish = ctx.body_json().await.client_err()?;
+    Ok(response::json(
+        match ctx.state().finish_upload(req.file_token).await {
+            Ok(_) => ResponseUploadFinish {
+                ok: true,
+                error: None,
+            },
+            Err(e) => ResponseUploadFinish {
+                ok: false,
+                error: Some(e.to_string()),
+            },
+        },
+    ))
 }

@@ -1,12 +1,13 @@
 use futures::{
     compat::{Future01CompatExt, Stream01CompatExt},
+    future,
     lock::Mutex,
     Future, Stream, StreamExt,
 };
 use tokio::{
     fs::{remove_file, File, OpenOptions},
-    io::write_all,
-    prelude::{Async as Async01, Stream as Stream01},
+    io::{shutdown, write_all, AsyncWrite},
+    prelude::{Async as Async01, Future as Future01, Stream as Stream01},
     timer::{delay_queue::Key as DQKey, DelayQueue, Interval},
 };
 use uuid::Uuid as UUID;
@@ -22,9 +23,21 @@ use std::{
     time::Duration,
 };
 
-use crate::{bitmap::BitMap, opt::OPT};
+use crate::{bitmap::BitMap, error::Error, opt::OPT};
 
-static EXPIRATION_INTERVAL: Duration = Duration::from_secs(15);
+static EXPIRATION_INTERVAL: Duration = Duration::from_secs(30);
+
+macro_rules! try_finally {
+    ($expr:expr, $finally:expr) => {
+        match $expr {
+            Ok(val) => val,
+            Err(err) => {
+                $finally;
+                return Err(From::from(err));
+            }
+        }
+    };
+}
 
 #[allow(unused)]
 async fn create_file(
@@ -81,10 +94,12 @@ struct PendingFile {
     chunk_size: usize,
     /// Chunks bitmap
     chunks: Vec<u8>,
+    /// The number of filled chunks
+    filled: usize,
 }
 
 impl PendingFile {
-    fn new(
+    pub fn new(
         token: UUID,
         name: String,
         size: usize,
@@ -95,6 +110,7 @@ impl PendingFile {
         //let file = await File
         let handle = Some(handle);
         let chunks = vec![];
+        let filled = 0;
         PendingFile {
             token,
             name,
@@ -103,43 +119,42 @@ impl PendingFile {
             handle,
             chunk_size,
             chunks,
+            filled,
         }
     }
 
-    fn cancel(&mut self) -> impl Future<Output = io::Result<()>> {
-        // take the file out and drop it
-        let _ = self.handle.take().expect("Take file out");
-        // remove the file
-        remove_file(self.path.clone()).compat()
+    pub fn chunk_number(&self) -> usize {
+        //(self.size as f64 / self.chunk_size as f64).ceil() as usize
+        // https://stackoverflow.com/questions/2745074/fast-ceiling-of-an-integer-division-in-c-c
+        if self.size == 0 {
+            0
+        } else {
+            1 + ((self.size - 1) / self.chunk_size)
+        }
     }
 
-    async fn write_chunk(
+    pub async fn write_chunk(
         &mut self,
-        chunk_number: usize,
+        chunk_index: usize,
         mut data: impl Stream<Item = io::Result<impl AsRef<[u8]>>> + Unpin,
-    ) -> io::Result<usize> {
-        // TODO: error out when the chunk has been filled
-        let pos = self.chunk_size * chunk_number;
+    ) -> Result<usize, Error> {
+        if self.chunks.get_bit(chunk_index) {
+            return Err(Error::ChunkAlreadyWritten);
+        }
+        let pos = self.chunk_size * chunk_index;
         if pos > self.size {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk number",
-            ));
+            return Err(Error::InvalidChunkIndex);
         }
         let file = self.handle.take().unwrap();
-        // FIXME: Result? does not give file back
         let size = min(self.chunk_size, self.size - pos);
         let mut file = file.seek(SeekFrom::Start(pos as u64)).compat().await?.0;
         let mut count = 0;
         while let Some(bytes) = data.next().await {
-            let bytes = bytes?;
+            let bytes = try_finally!(bytes, self.handle = Some(file));
             count += bytes.as_ref().len();
             if count > size {
                 self.handle = Some(file);
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Data length too long",
-                ));
+                return Err(Error::DataNotFitIn(pos + count));
             }
             // TODO: it seems that write_all flushes by design, which may result in unbearable
             // performance penalty
@@ -147,13 +162,29 @@ impl PendingFile {
         }
         self.handle = Some(file);
         if count != size {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Data length too short",
-            ));
+            return Err(Error::DataNotFitIn(pos + count));
         }
-        self.chunks.set_bit(chunk_number);
+        self.chunks.set_bit(chunk_index);
+        self.filled += 1;
         Ok(size)
+    }
+
+    pub fn finish(&mut self) -> Result<impl Future<Output = io::Result<()>>, Error> {
+        // avoid async fn here to minimize possile contention (but is it really necessary?)
+        debug_assert!(self.filled <= self.chunk_number());
+        if self.filled < self.chunk_number() {
+            return Err(Error::FileNotFilledUp(self.chunks.first_unset()));
+        }
+        let file = self.handle.take().expect("Take file out");
+        // TODO: move the temporary file (not implemented yet) to the final dest
+        Ok(shutdown(file).map(|_| ()).compat())
+    }
+
+    pub fn cancel(&mut self) -> impl Future<Output = io::Result<()>> {
+        // take the file out and drop it
+        let _ = self.handle.take().expect("Take file out");
+        // remove the file
+        remove_file(self.path.clone()).compat()
     }
 }
 
@@ -182,14 +213,6 @@ impl Default for FileQueue {
             pending_files: HashMap::default(),
             expirations: DelayQueue::with_capacity(0),
         }
-    }
-}
-
-impl Drop for FileQueue {
-    fn drop(&mut self) {
-        println!("file_queue dropped!");
-        info!("file_queue dropped!");
-        unreachable!();
     }
 }
 
@@ -225,37 +248,13 @@ impl FileQueue {
                 if let Some(file) = file_queue.pending_files.remove(entry.get_ref()) {
                     expired.push(file.0);
                 } else {
-                    // FIXME: triggered during test
-                    /*
-                                            Finished dev [unoptimized + debuginfo] target(s) in 8.65s
-                         Running `target/debug/intray`
-                    [2019-06-05T15:37:57Z INFO  intray] Running at [::]:8080...
-                    [2019-06-05T15:37:57Z DEBUG intray::state] Pending files expiration task starts with interval 15s
-                    [2019-06-05T15:38:12Z DEBUG intray::state] 0 pending files expired at Instant { tv_sec: 45530, tv_nsec: 289342300 }
-                    [2019-06-05T15:38:21Z DEBUG intray::api] Upload starts with UUID: 1cc99003-949e-4530-81ee-a8418bbca8a3
-                    [2019-06-05T15:38:21Z INFO  tide_log] POST /upload/start 200 1ms
-                    [2019-06-05T15:38:27Z DEBUG intray::state] 0 pending files expired at Instant { tv_sec: 45545, tv_nsec: 289342300 }
-                    [2019-06-05T15:38:42Z DEBUG intray::state] 1 pending files expired at Instant { tv_sec: 45560, tv_nsec: 289342300 }
-                    [2019-06-05T15:38:47Z DEBUG intray::api] Upload starts with UUID: 65ee2a12-34b3-4fa0-895b-3698e01d69dc
-                    [2019-06-05T15:38:47Z INFO  tide_log] POST /upload/start 200 0ms
-                    [2019-06-05T15:38:57Z DEBUG intray::state] 0 pending files expired at Instant { tv_sec: 45575, tv_nsec: 289342300 }
-                    [2019-06-05T15:38:58Z INFO  tide_log] POST /upload/65ee2a12-34b3-4fa0-895b-3698e01d69dc/0 200 0ms
-                    [2019-06-05T15:39:07Z INFO  tide_log] POST /upload/65ee2a12-34b3-4fa0-895b-3698e01d69dc/1 200 0ms
-                    [2019-06-05T15:39:12Z DEBUG intray::state] 0 pending files expired at Instant { tv_sec: 45590, tv_nsec: 289342300 }
-                    [2019-06-05T15:39:19Z INFO  tide_log] POST /upload/65ee2a12-34b3-4fa0-895b-3698e01d69dc/2 200 0ms
-                    [2019-06-05T15:39:26Z INFO  tide_log] POST /upload/65ee2a12-34b3-4fa0-895b-3698e01d69dc/3 500 0ms
-                    [2019-06-05T15:39:27Z ERROR intray::state] File not found when expiring, UUID: 65ee2a12-34b3-4fa0-895b-3698e01d69dc
-                    thread 'tokio-runtime-worker-3' panicked at 'Take file out', src/libcore/option.rs:1036:5 // this got FIXED
-                    note: Run with `RUST_BACKTRACE=1` environment variable to display a backtrace.
-                    [2019-06-05T15:39:40Z DEBUG intray::api] Upload starts with UUID: 8ec970b4-2090-4e18-b5b8-dd53c66e6e9e
-                    [2019-06-05T15:39:40Z INFO  tide_log] POST /upload/start 200 0ms
-                    */
                     unreachable!(
                         "File not found when expiring, UUID: {}",
                         entry.get_ref().to_hyphenated()
                     );
                 }
             }
+            debug!("Pending files: {}.", file_queue.pending_files.len());
             // the lock to file_queue gets released hereinafter
         }
         let count = expired.len();
@@ -293,43 +292,65 @@ impl FileQueue {
         token
     }
 
-    pub fn acquire_file(&mut self, token: UUID) -> Option<Arc<Mutex<PendingFile>>> {
-        let (file, dqkey) = self.pending_files.get_mut(&token)?;
+    pub fn acquire_file(&mut self, token: UUID) -> Result<Arc<Mutex<PendingFile>>, Error> {
+        info!("acquire_file");
+        let (file, dqkey) = self
+            .pending_files
+            .get_mut(&token)
+            .ok_or(Error::InvalidFileToken)?;
         // the contention won't make dqkey invalid
         if let Some(dqkey) = dqkey.take() {
             // if no others have disabled the expiration
             self.expirations.remove(&dqkey);
+            info!("goo");
+            info!("File {} acquired with expiration disabled.", token.to_hyphenated());
         }
-        Some(file.clone())
-        //self.file_queue.pending_files.
-        // get arc mutex pending file
-        // disable expirations
-        // return pending file
-        //self.file_queue.expirations.remove()
-        // Note: Error when not found (possibly invalid token or expired/expiring)
+        else {
+            info!("lol");
+            debug!("File {} acquired, expiration has already been disabled.", token.to_hyphenated());
+        }
+        info!("boom");
+        Ok(file.clone())
     }
 
-    pub fn release_file(&mut self, token: UUID) -> bool {
+    pub fn release_file(&mut self, token: UUID) -> Result<bool, Error> {
         // TODO: doc this function properly
+        // TODO: error out when pending_fliles has no token, which may indicates contention (i.e. the file has been finished)
+        // note: the file won't get expired
         // assuming that Arc<Mutex<PendingFile>> won't be cloned during the execution of the function
-        let (file, dqkey) = self
-            .pending_files
-            .get(&token)
-            .expect("The token should always be valid when releasing a file");
-        assert!(dqkey.is_none());
-        // assuming that all unused references are dropped before
-        if Arc::strong_count(file) == 1 {
-            self.expirations.insert(token, EXPIRATION_INTERVAL);
-            true
+        if let Some((file, dqkey)) = self.pending_files.get_mut(&token) {
+            debug_assert!(dqkey.is_none());
+            // assuming that all unused references are dropped before
+            let ref_count = Arc::strong_count(file);
+            if ref_count == 1 {
+                *dqkey = Some(self.expirations.insert(token, EXPIRATION_INTERVAL));
+                debug!("File {} released.", token.to_hyphenated());
+                Ok(true)
+            } else {
+                debug!("File {} not released with {} references holden.", token.to_hyphenated(), ref_count);
+                Ok(false)
+            }
         } else {
-            false
+            Err(Error::InvalidFileToken)
         }
+    }
+
+    /// Discard a file by removing it in the `pending_files` list
+    ///
+    /// Be sure to acquire_file before calling this.
+    pub fn discard(&mut self, token: UUID) -> Result<(), Error> {
+        let (_file, _dqkey) = self
+            .pending_files
+            .remove(&token)
+            .ok_or(Error::InvalidFileToken)?;
+        assert!(_dqkey.is_none());
+        Ok(())
     }
 }
 
 #[derive(Default)]
 pub struct State {
-    file_queue: Arc<Mutex<FileQueue>>, //expirations:
+    file_queue: Arc<Mutex<FileQueue>>,
 }
 
 impl State {
@@ -359,22 +380,42 @@ impl State {
     pub async fn put_chunk(
         &self,
         file_token: UUID,
-        chunk_number: usize,
+        chunk_index: usize,
         data: impl Stream<Item = io::Result<impl AsRef<[u8]>>> + Unpin,
-    ) -> io::Result<usize> {
+    ) -> Result<usize, Error> {
         let result = {
             // drop file_queue lock immediately
-            let _file = self.file_queue.lock().await.acquire_file(file_token).unwrap(/*FIXME: pass error out*/);
+            let _file = self.file_queue.lock().await.acquire_file(file_token)?;
             let mut file = _file.lock().await;
             // TODO: Does the lock/unlock sequence work as expected?
-            file.write_chunk(chunk_number, data).await
+            match file.write_chunk(chunk_index, data).await {
+                Err(Error::Io(e)) => {
+                    // already an IO error here, so discarding the new one
+                    let _ = file.cancel().await;
+                    Err(Error::Io(e))
+                }
+                other => other,
+            }
         };
-        // before calling release_file, the Arc<Mutex<PendingFile>> should be dropped
-        self.file_queue.lock().await.release_file(file_token);
+        let mut file_queue = self.file_queue.lock().await;
+        if let Err(Error::Io(ref _e)) = result {
+            // The intenal file has been taken away and dropped. The pending file must be canceled.
+            file_queue.discard(file_token)?;
+        } else {
+            // before calling release_file, the Arc<Mutex<PendingFile>> should be dropped
+            file_queue.release_file(file_token)?;
+        }
         result
     }
 
-    pub fn finish_upload(&self) {}
+    pub async fn finish_upload(&self, file_token: UUID) -> Result<(), Error> {
+        let mut file_queue = self.file_queue.lock().await;
+        let file = file_queue.acquire_file(file_token)?;
+        file_queue.discard(file_token)?;
+        file.lock().await.finish()?.await?;
+        // make sure the file is finished
+        Ok(())
+    }
 
-    // cancel upload
+    // TODO: cancel upload
 }

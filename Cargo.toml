@@ -13,13 +13,13 @@ mime_guess = "2.0.0-alpha.6"
 tokio = "0.1"
 futures-preview = {version = "0.3.0-alpha.16", features = ["compat", "io-compat"]}
 #chrono = "0.4"
-#encoding = "0.2"
 uuid = { version = "0.7", features = ["v4", "serde"] }
 bytes = "0.4"
 env_logger = "0.6"
 log = "0.4"
 structopt = "0.2"
 lazy_static = "1"
+failure = "0.1"
 
 [patch.crates-io]
 http-service = { git = "https://github.com/rustasync/http-service", branch = "master" }

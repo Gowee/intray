@@ -1,4 +1,5 @@
 #![feature(async_await)]
+#![feature(impl_trait_in_bindings)]
 
 extern crate futures;
 extern crate tide;
@@ -15,6 +16,8 @@ extern crate env_logger;
 extern crate structopt;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate failure;
 
 use futures::{compat::Executor01CompatExt, future::FutureExt, task::SpawnExt};
 use mime_guess::guess_mime_type;
@@ -29,6 +32,7 @@ use std::env;
 
 mod api;
 mod bitmap;
+mod error;
 mod opt;
 mod state;
 
@@ -80,7 +84,7 @@ fn main() {
     app.at("/assets/*path").get(handle_assets);
     app.at("/upload/start").post(handle_upload_start);
     app.at("/upload/:file/:chunk").post(handle_upload_chunk);
-    app.at("/upload/end").post(handle_upload_end);
+    app.at("/upload/finish").post(handle_upload_finish);
     let app_task = app.serve(OPT.socket_addr());
 
     let runtime = Runtime::new().expect("runtime");
@@ -88,7 +92,6 @@ fn main() {
     spawner.spawn(app_task.map(|_| ())).expect("App task");
     spawner.spawn(expiration_task).expect("Expiration task");
     info!("Running at {}...", OPT.socket_addr());
-    //runtime.block_on(tokio::timer::Delay::new(std::time::Instant::now() + std::time::Duration::from_secs(5))).unwrap();
     runtime.shutdown_on_idle().wait().expect("Runtime shutdown");
     // TODO: manually handle SIGINT to clean up resources gracefully
 }
