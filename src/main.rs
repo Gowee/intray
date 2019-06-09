@@ -1,12 +1,10 @@
 #![feature(async_await)]
-#![feature(impl_trait_in_bindings)]
 
 extern crate futures;
 extern crate tide;
 extern crate tokio;
 #[macro_use]
 extern crate rust_embed;
-//extern crate futures;
 extern crate bytes;
 extern crate mime_guess;
 extern crate uuid;

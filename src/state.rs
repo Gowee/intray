@@ -1,12 +1,11 @@
 use futures::{
     compat::{Future01CompatExt, Stream01CompatExt},
-    future,
     lock::Mutex,
     Future, Stream, StreamExt,
 };
 use tokio::{
     fs::{remove_file, File, OpenOptions},
-    io::{shutdown, write_all, AsyncWrite},
+    io::{shutdown, write_all},
     prelude::{Async as Async01, Future as Future01, Stream as Stream01},
     timer::{delay_queue::Key as DQKey, DelayQueue, Interval},
 };
@@ -303,11 +302,16 @@ impl FileQueue {
             // if no others have disabled the expiration
             self.expirations.remove(&dqkey);
             info!("goo");
-            info!("File {} acquired with expiration disabled.", token.to_hyphenated());
-        }
-        else {
+            info!(
+                "File {} acquired with expiration disabled.",
+                token.to_hyphenated()
+            );
+        } else {
             info!("lol");
-            debug!("File {} acquired, expiration has already been disabled.", token.to_hyphenated());
+            debug!(
+                "File {} acquired, expiration has already been disabled.",
+                token.to_hyphenated()
+            );
         }
         info!("boom");
         Ok(file.clone())
@@ -327,7 +331,11 @@ impl FileQueue {
                 debug!("File {} released.", token.to_hyphenated());
                 Ok(true)
             } else {
-                debug!("File {} not released with {} references holden.", token.to_hyphenated(), ref_count);
+                debug!(
+                    "File {} not released with {} references holden.",
+                    token.to_hyphenated(),
+                    ref_count
+                );
                 Ok(false)
             }
         } else {

@@ -15,7 +15,7 @@
         <button onclick=javascript:onUpload()>Upload</button>
     </section>
     <script>
-        function onUpload() {
+        async function onUpload() {
             const files = document.getElementById("file-input").files;
             console.log(files);
             fetch("/upload/start", )
