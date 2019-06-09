@@ -292,7 +292,6 @@ impl FileQueue {
     }
 
     pub fn acquire_file(&mut self, token: UUID) -> Result<Arc<Mutex<PendingFile>>, Error> {
-        info!("acquire_file");
         let (file, dqkey) = self
             .pending_files
             .get_mut(&token)
@@ -301,25 +300,21 @@ impl FileQueue {
         if let Some(dqkey) = dqkey.take() {
             // if no others have disabled the expiration
             self.expirations.remove(&dqkey);
-            info!("goo");
             info!(
                 "File {} acquired with expiration disabled.",
                 token.to_hyphenated()
             );
         } else {
-            info!("lol");
             debug!(
                 "File {} acquired, expiration has already been disabled.",
                 token.to_hyphenated()
             );
         }
-        info!("boom");
         Ok(file.clone())
     }
 
     pub fn release_file(&mut self, token: UUID) -> Result<bool, Error> {
         // TODO: doc this function properly
-        // TODO: error out when pending_fliles has no token, which may indicates contention (i.e. the file has been finished)
         // note: the file won't get expired
         // assuming that Arc<Mutex<PendingFile>> won't be cloned during the execution of the function
         if let Some((file, dqkey)) = self.pending_files.get_mut(&token) {

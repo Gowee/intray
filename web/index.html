@@ -15,11 +15,67 @@
         <button onclick=javascript:onUpload()>Upload</button>
     </section>
     <script>
+        const CHUNK_SIZE = 4 * 1024 * 1024;
+
         async function onUpload() {
             const files = document.getElementById("file-input").files;
-            console.log(files);
-            fetch("/upload/start", )
+            for (const file of files) {
+                const start_at = Date.now();
+                const metadata = {
+                    'file_name': file.name,
+                    'file_size': file.size,
+                    'chunk_size': CHUNK_SIZE
+                };
+                console.log("Uploading", metadata);
+                const task = await (await fetch("/upload/start", {
+                    method: "POST",
+                    headers: { 'Content-Type': "application/json" },
+                    body: JSON.stringify(metadata)
+                })).json();
+                if (task.ok) {
+                    const chunk_number = Math.ceil(file.size / CHUNK_SIZE);
+                    const file_token = task.file_token;
+                    let broken = false;
+                    for (let chunk_index = 0; chunk_index < chunk_number; chunk_index++) {
+                        const chunk = await(await fetch(`/upload/${file_token}/${chunk_index}`, {
+                            method: "POST",
+                            headers: { 'Content-Type': "application/octet-stream" },
+                            body: file.slice(chunk_index * CHUNK_SIZE, (chunk_index + 1) * CHUNK_SIZE)
+                        })).json();
+                        if (chunk.ok) {
+                            console.log(`Uploaded ${chunk_index + 1}/${chunk_number} chunks.`);
+                        }
+                        else {
+                            console.error(chunk.error);
+                            broken = true;
+                            break;
+                        }
+                    }
+                    if (!broken) {
+                        const result = await (await fetch("/upload/finish", {
+                            'method': "POST",
+                            headers: { 'Content-Type': "application/json" },
+                            body: JSON.stringify({
+                                file_token: file_token
+                            })
+                        })).json();
+                        if (result.ok) {
+                            const elapsed = Date.now() - start_at;
+                            console.log(`Successfully uploaded ${file.name} with \
+                            ${file.size / 1024 / 1024} MiBs in ${elapsed / 1000} seconds at \
+                            ${file.size / 1024 / 1024 / (elapsed / 1000)} MiB/sec.`);
+                        }
+                    }
+                    else {
+                        console.error(`Failed to upload ${file.name} due to previous error.`);
+                    }
+                }
+                else {
+                    console.error(task.error);
+                }
+            }
         }
     </script>
 </body>
+
 </html>

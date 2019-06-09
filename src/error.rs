@@ -1,4 +1,5 @@
 use std::io;
+
 #[derive(Debug, Fail)]
 pub enum Error {
     #[fail(display = "I/O Error: {}", _0)]
