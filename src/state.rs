@@ -300,7 +300,7 @@ impl FileQueue {
         if let Some(dqkey) = dqkey.take() {
             // if no others have disabled the expiration
             self.expirations.remove(&dqkey);
-            info!(
+            debug!(
                 "File {} acquired with expiration disabled.",
                 token.to_hyphenated()
             );
