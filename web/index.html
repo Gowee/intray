@@ -6,76 +6,127 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>InTray</title>
+    <style>
+        html {
+            height: 100%;
+            overflow-y: auto !important;
+        }
+
+        body {
+            min-height: 100%;
+            overflow: hidden;
+        }
+        tr.task-item > td {
+            vertical-align: middle;
+        }
+    </style>
+    <link rel="stylesheet" href="assets/bulma.min.css">
 </head>
 
-<body>
-    <section class="wrapper">
-        <h1 class="title">Upload files</h1>
-        <input type="file" multiple name="file" id="file-input" />
-        <button onclick=javascript:onUpload()>Upload</button>
-    </section>
-    <script>
-        const CHUNK_SIZE = 4 * 1024 * 1024;
+<body id="drop-zone">
+    <section class="section">
+        <div class="container">
+            <div class="column is-6-desktop is-offset-3-desktop is-8-tablet is-offset-2-tablet">
+                <section class="hero">
+                    <div class="hero-body">
+                        <div class="container">
+                            <h1 class="title">
+                                Upload Files
+                            </h1>
+                        </div>
+                    </div>
+                </section>
+                <div class="columns">
+                    <div class="column is-four-fifths">
+                        <div class="field">
+                            <div class="control">
+                                <div class="file has-name is-fullwidth">
+                                    <label class="file-label">
+                                        <input class="file-input" type="file" name="file" multiple id="file-input">
+                                        <span class="file-cta">
+                                            <!-- <span class="file-icon">
+                                                                    <i class="fas fa-upload"></i>
+                                                                </span> -->
+                                            <span class="file-label">
+                                                Choose files
+                                            </span>
+                                        </span>
+                                        <span class="file-name" id="file-name-list">
+                                            No files selected.
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="cotnrol">
+                            <button id="upload-button" class="button is-primary">
+                                Upload
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
-        async function onUpload() {
-            const files = document.getElementById("file-input").files;
-            for (const file of files) {
-                const start_at = Date.now();
-                const metadata = {
-                    'file_name': file.name,
-                    'file_size': file.size,
-                    'chunk_size': CHUNK_SIZE
-                };
-                console.log("Uploading", metadata);
-                const task = await (await fetch("/upload/start", {
-                    method: "POST",
-                    headers: { 'Content-Type': "application/json" },
-                    body: JSON.stringify(metadata)
-                })).json();
-                if (task.ok) {
-                    const chunk_number = Math.ceil(file.size / CHUNK_SIZE);
-                    const file_token = task.file_token;
-                    let broken = false;
-                    for (let chunk_index = 0; chunk_index < chunk_number; chunk_index++) {
-                        const chunk = await(await fetch(`/upload/${file_token}/${chunk_index}`, {
-                            method: "POST",
-                            headers: { 'Content-Type': "application/octet-stream" },
-                            body: file.slice(chunk_index * CHUNK_SIZE, (chunk_index + 1) * CHUNK_SIZE)
-                        })).json();
-                        if (chunk.ok) {
-                            console.log(`Uploaded ${chunk_index + 1}/${chunk_number} chunks.`);
-                        }
-                        else {
-                            console.error(chunk.error);
-                            broken = true;
-                            break;
-                        }
-                    }
-                    if (!broken) {
-                        const result = await (await fetch("/upload/finish", {
-                            'method': "POST",
-                            headers: { 'Content-Type': "application/json" },
-                            body: JSON.stringify({
-                                file_token: file_token
-                            })
-                        })).json();
-                        if (result.ok) {
-                            const elapsed = Date.now() - start_at;
-                            console.log(`Successfully uploaded ${file.name} with \
-                            ${file.size / 1024 / 1024} MiBs in ${elapsed / 1000} seconds at \
-                            ${file.size / 1024 / 1024 / (elapsed / 1000)} MiB/sec.`);
-                        }
-                    }
-                    else {
-                        console.error(`Failed to upload ${file.name} due to previous error.`);
-                    }
-                }
-                else {
-                    console.error(task.error);
-                }
-            }
-        }
-    </script>
+                <!-- <hr class="hr"> -->
+                <table class="table is-fullwidth is-hoverable is-stripped">
+                    <thead>
+                        <tr>
+                            <th>
+                                #
+                            </th>
+                            <th>
+                                File Name
+                            </th>
+                            <th>
+                                Size
+                            </th>
+                            <th>
+                                Status
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="task-list">
+                        <template id="task-item-template">
+                            <tr class="task-item">
+                                <td name="id"></td>
+                                <td name="name"></td>
+                                <td name="size"></td>
+                                <td name="status">
+                                </td>
+                            </tr>
+                        </template>
+                        <!-- Inside #task-item-template -->
+                        <template id="status-pending-template">
+                            <!-- <span class="tag is-info">Pending</span> -->
+                            <progress class="progress is-info" name="progress" max="100">Pending</progress>
+                        </template>
+                        <template id="status-progress-template">
+                            <progress class="progress is-primary" name="progress" max="100"></progress>
+                        </template>
+                        <template id="status-failed-template">
+                            <span class="tag is-danger">Failed</span>
+                        </template>
+                        <template id="status-done-template">
+                            <span class="tag is-success">Done</span>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+    <!--     <div class="container">
+        <header class="flex-item title">
+            <h1>Upload files</h1>
+        </header>
+        <section class="flex-item wrapper">
+            <div>
+                <input type="file" multiple name="file" id="file-input" />
+                <button onclick=javascript:onUpload()>Upload</button>
+            </div>
+        </section>
+    </div> -->
+    <script src="assets/index.js"></script>
 </body>
 
 </html>
