@@ -58,6 +58,7 @@ class Task {
     }
 }
 
+// TODO: TASKS.failed for failed task for manually retry
 const TASKS = { pending: new Array(), failed: new Map() };
 const WORKERS = new Map();
 

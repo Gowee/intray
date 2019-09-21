@@ -98,3 +98,41 @@ pub async fn handle_upload_finish(mut ctx: Context<State>) -> EndpointResult {
         },
     ))
 }
+
+/* #[derive(Debug, Deserialize)]
+struct RequestUploadChunk {
+    token: UUID,
+    file_size: usize,
+    chunk_size: usize,
+} */
+
+#[derive(Debug, Serialize)]
+struct ResponseUploadFull {
+    ok: bool,
+    written: Option<usize>,
+    error: Option<String>,
+}
+
+pub async fn handle_upload_full(mut ctx: Context<State>) -> EndpointResult {
+    let file_name: String = ctx.param("name").unwrap_or(String::from(""));
+    let size: Option<usize> = match ctx.headers().get("Content-Length")
+        {
+            Some(v) => Some(v.to_str().client_err()?.parse().client_err()?),
+            None => None
+        };
+    let data = ctx.take_body();
+    Ok(response::json(
+        match ctx.state().put_full(file_name, size, data).await {
+            Ok(written) => ResponseUploadFull {
+                ok: true,
+                written: Some(written),
+                error: None,
+            },
+            Err(e) => ResponseUploadFull {
+                ok: false,
+                written: None,
+                error: Some(e.to_string()),
+            },
+        },
+    ))
+}

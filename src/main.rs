@@ -83,6 +83,7 @@ fn main() {
     app.at("/upload/start").post(handle_upload_start);
     app.at("/upload/:file/:chunk").post(handle_upload_chunk);
     app.at("/upload/finish").post(handle_upload_finish);
+    app.at("/upload/full/:name").post(handle_upload_full);
     let app_task = app.serve(OPT.socket_addr());
 
     let runtime = Runtime::new().expect("runtime");

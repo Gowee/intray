@@ -421,4 +421,36 @@ impl State {
     }
 
     // TODO: cancel upload
+
+    pub async fn put_full(
+        &self,
+        name: String,
+        size: Option<usize>,
+        mut data: impl Stream<Item = io::Result<impl AsRef<[u8]>>> + Unpin,
+    ) -> Result<usize, Error> {
+        let (mut file, path) = create_file(name, Option::<String>::None).await?;
+        let mut count = 0;
+        while let Some(bytes) = data.next().await {
+            let bytes = try_finally!(bytes, { let _ = remove_file(path).compat().await; });
+            count += bytes.as_ref().len();
+            if let Some(size) = size {
+                if count > size {
+                    // TODO: delete file?
+                    let _ = remove_file(path).compat().await;
+                    return Err(Error::DataNotFitIn(count));
+                }
+            }
+            // TODO: it seems that write_all flushes by design, which may result in unbearable
+            // performance penalty; even though there is no flush according to the code (?)
+            file = write_all(file, bytes).compat().await?.0;
+        }
+        if let Some(size) = size {
+            if count != size {
+                let _ = remove_file(path).compat().await;
+                return Err(Error::FileNotFilledUp(count));
+            }
+        }
+        let _ = shutdown(file);
+        Ok(count)
+    }
 }
