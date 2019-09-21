@@ -4,16 +4,39 @@ const CHUNK_SIZE = 4 * 1024 * 1024;
 const ONESHOT_THRESHHOLD = CHUNK_SIZE;
 // Number of workers, per which uploads one file at a time.
 const CONCURRENT_WORKER = 3;
+// Retry to upload chunks if failed for at most `CHUNK_RETRY` times;
+const CHUNK_RETRY = 3;
 
+const logBase = (base, number) => Math.log(number) / Math.log(base);
 function size_to_readable(size) {
     if (size === 0) {
         return "0 B";
     }
-    const log = (base, number) => Math.log(number) / Math.log(base);
     const units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"];
-    const level = Math.min(Math.floor(log(1024, size)), units.length - 1);
+    const level = Math.min(Math.floor(logBase(1024, size)), units.length - 1);
     const number = size / 1024 ** level;
     return `${number.toFixed(2)} ${units[level]}`;
+}
+function period_to_readable(period) {
+    // ms
+    period /= 1000;
+    if (period < 0.01) {
+        return "an instant";
+    }
+    let prefix = "";
+    if (period > 24 * 3600) {
+        const day = Math.floor(period / 24 * 3600 * 1000);
+        prefix = `${day} ${(day > 1) ? "days" : "day"}`;
+    }
+    const units = ["sec", "min", "hr"];
+    // \log_60{n} < 0 where n < 1 
+    const level = period > 1 ? Math.min(Math.floor(logBase(60, period)), units.length - 1) : 0;
+    const number = period / 60 ** level;
+    // https://english.stackexchange.com/questions/193313/is-it-hour-or-hours-when-used-in-a-phrase
+    const suffix = `${number.toFixed(2)} ${units[level]}${number === 1 ? "" : "s"}`;
+    // assert suffix < 24 hrs
+    return `${prefix} ${suffix}`;
+    // TODO: time is different from size; maybe expected: ?h?m?s
 }
 function sleep(period) {
     return new Promise((resolve, _reject) => setTimeout(resolve, period));
@@ -107,63 +130,6 @@ async function onUpload() {
     filesSelected = null;
     fileInput.value = "";
     fileInput.dispatchEvent(new Event("change"));
-/*
-    const files = document.getElementById("file-input").files;
-    for (const file of files) {
-        const start_at = Date.now();
-        const metadata = {
-            'file_name': file.name,
-            'file_size': file.size,
-            'chunk_size': CHUNK_SIZE
-        };
-        console.log("Uploading", metadata);
-        const task = await (await fetch("/upload/start", {
-            method: "POST",
-            headers: { 'Content-Type': "application/json" },
-            body: JSON.stringify(metadata)
-        })).json();
-        if (task.ok) {
-            const chunk_number = Math.ceil(file.size / CHUNK_SIZE);
-            const file_token = task.file_token;
-            let broken = false;
-            for (let chunk_index = 0; chunk_index < chunk_number; chunk_index++) {
-                const chunk = await (await fetch(`/upload/${file_token}/${chunk_index}`, {
-                    method: "POST",
-                    headers: { 'Content-Type': "application/octet-stream" },
-                    body: file.slice(chunk_index * CHUNK_SIZE, (chunk_index + 1) * CHUNK_SIZE)
-                })).json();
-                if (chunk.ok) {
-                    console.log(`Uploaded ${chunk_index + 1}/${chunk_number} chunks.`);
-                }
-                else {
-                    console.error(chunk.error);
-                    broken = true;
-                    break;
-                }
-            }
-            if (!broken) {
-                const result = await (await fetch("/upload/finish", {
-                    'method': "POST",
-                    headers: { 'Content-Type': "application/json" },
-                    body: JSON.stringify({
-                        file_token: file_token
-                    })
-                })).json();
-                if (result.ok) {
-                    const elapsed = Date.now() - start_at;
-                    console.log(`Successfully uploaded ${file.name} with \
-                            ${file.size / 1024 / 1024} MiBs in ${elapsed / 1000} seconds at \
-                            ${file.size / 1024 / 1024 / (elapsed / 1000)} MiB/sec.`);
-                }
-            }
-            else {
-                console.error(`Failed to upload ${file.name} due to previous error.`);
-            }
-        }
-        else {
-            console.error(task.error);
-        }
-    }*/
 }
 
 async function upload_worker(token) {
@@ -177,16 +143,25 @@ async function upload_worker(token) {
             console.log(`Worker [${token}] fetched task ${task.id} with a file named ${task.file.name}`);
             const statusProgress = document.importNode(statusTemplate.progress.content, true);
             const taskItem = document.getElementById(`task-item-${task.id}`);
-            const oldStatus = taskItem.querySelector("[name=status]")
-            oldStatus.replaceChild(statusProgress, oldStatus.firstElementChild);
-            const progress = statusProgress.querySelector("[name=progress]");
+            const statusContainer = taskItem.querySelector("[name=status]")
+            const progressBar = statusProgress.querySelector("[name=progress]"); // Should before replaceChild
+            statusContainer.replaceChild(statusProgress, statusContainer.firstElementChild);
             const progress_fn = function(progress) {
-                progress_fn.textContent = `${progress} %`;
-                progress_fn.setAttribute("value", progress);
+                progressBar.textContent = `${progress} %`;
+                progressBar.setAttribute("value", progress);
             };
             task.setProgressFn(progress_fn);
-            // try
-            await upload(task);
+            try {
+                const result = await upload(task);
+                const statusDone = document.importNode(statusTemplate.done.content, true);
+                statusDone.querySelector("[name=elapsed]").textContent = period_to_readable(result);
+                statusContainer.replaceChild(statusDone, statusContainer.firstElementChild);
+            }
+            catch (e) {
+                const statusFailed = document.importNode(statusTemplate.failed.content, true);
+                statusFailed.firstElementChild.title = e;
+                statusContainer.replaceChild(statusFailed, statusContainer.firstElementChild);
+            }
         }
     }
     console.log(`Worker [${token}] ends.`);
@@ -202,33 +177,41 @@ async function upload(task) {
     };
     console.log("Uploading", metadata);
     // Here treat `job` as initialized uploading instance of `task`.
-    const job = await (await fetch("/upload/start", {
-        method: "POST",
-        headers: { 'Content-Type': "application/json" },
-        body: JSON.stringify(metadata)
-    })).json();
+    try {
+        const job = await (await fetch("/upload/start", {
+            method: "POST",
+            headers: { 'Content-Type': "application/json" },
+            body: JSON.stringify(metadata)
+        })).json();
     if (job.ok) {
         const chunk_number = Math.ceil(file.size / CHUNK_SIZE);
         const file_token = job.file_token;
-        let broken = false;
         for (let chunk_index = 0; chunk_index < chunk_number; chunk_index++) {
-            const chunk = await (await fetch(`/upload/${file_token}/${chunk_index}`, {
-                method: "POST",
-                headers: { 'Content-Type': "application/octet-stream" },
-                body: file.slice(chunk_index * CHUNK_SIZE, (chunk_index + 1) * CHUNK_SIZE)
-            })).json();
-            if (chunk.ok) {
-                task.setProgress((chunk_index + 1) / (chunk_number));
-                console.log(`Uploaded ${chunk_index + 1}/${chunk_number} chunks.`);
+            let chunk_ok;
+            for (let retry = 0; retry < CHUNK_RETRY; retry++) {
+                try {
+                    const chunk = await (await fetch(`/upload/${file_token}/${chunk_index}`, {
+                        method: "POST",
+                        headers: { 'Content-Type': "application/octet-stream" },
+                        body: file.slice(chunk_index * CHUNK_SIZE, (chunk_index + 1) * CHUNK_SIZE)
+                    })).json();
+                    if (chunk.ok) {
+                        task.setProgress((chunk_index + 1) / (chunk_number) * 100);
+                        console.log(`Uploaded ${chunk_index + 1}/${chunk_number} chunks.`);
+                        chunk_ok = true;
+                        break;
+                    }
+                }
+                catch (e) {
+                    console.log(`Failed: ${e}, retrying.`);
+                    throw e;
+                }
             }
-            else {
-                throw Exception("TODO");
-                console.error(chunk.error);
-                broken = true;
-                break;
+            if (chunk_ok !== true) {
+                throw new Error(`Maximum retry times reached.`)
             }
         }
-        if (!broken) {
+        try {
             const result = await (await fetch("/upload/finish", {
                 'method': "POST",
                 headers: { 'Content-Type': "application/json" },
@@ -242,14 +225,20 @@ async function upload(task) {
                         ${file.size / 1024 / 1024} MiBs in ${elapsed / 1000} seconds at \
                         ${file.size / 1024 / 1024 / (elapsed / 1000)} MiB/sec.`);
             }
+            else {
+                throw new Error(`server error: ${result.error}`);
+            }
         }
-        else {
-            console.error(`Failed to upload ${file.name} due to previous error.`);
+        catch (e) {
+            throw new Error(`Error when finishing: ${e}`)
         }
     }
     else {
-        throw Exception("TODO");
-        console.error(task.error);
+        throw new Error(`server error: ${job.error}`);
+    }
+    }
+    catch (e) {
+        throw new Error(`Error when initialzing: ${e}`);
     }
     const elapsed = Date.now() - start_at;
     return elapsed;

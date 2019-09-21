@@ -16,7 +16,8 @@
             min-height: 100%;
             overflow: hidden;
         }
-        tr.task-item > td {
+
+        tr.task-item>td {
             vertical-align: middle;
         }
     </style>
@@ -108,7 +109,14 @@
                             <span class="tag is-danger">Failed</span>
                         </template>
                         <template id="status-done-template">
-                            <span class="tag is-success">Done</span>
+                            <!-- TODO: template & slot (no support in IE(?) and ...(?)) -->
+                            <span class="tags has-addons">
+                                <span class="tag is-success">Done</span>
+                                <span class="tag is-light">
+                                    <!-- // TODO: Must be a &nbsp; escape? -->
+                                    <span>in&nbsp;</span><span name="elapsed"></span>
+                                </span>
+                            </span>
                         </template>
                     </tbody>
                 </table>
