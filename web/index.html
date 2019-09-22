@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>InTray</title>
+    <!-- <link rel="shortcut icon" href="assets/Noto_Emoji_Oreo_1f4e5.png" type="image/png"> -->
     <style>
         html {
             height: 100%;
@@ -73,7 +74,7 @@
                 <table class="table is-fullwidth is-hoverable is-stripped">
                     <thead>
                         <tr>
-                            <th>
+                            <th class="is-hidden-mobile">
                                 #
                             </th>
                             <th>
@@ -90,7 +91,7 @@
                     <tbody id="task-list">
                         <template id="task-item-template">
                             <tr class="task-item">
-                                <td name="id"></td>
+                                <td name="id" class="is-hidden-mobile"></td>
                                 <td name="name"></td>
                                 <td name="size"></td>
                                 <td name="status">
@@ -111,6 +112,7 @@
                         <template id="status-done-template">
                             <!-- TODO: template & slot (no support in IE(?) and ...(?)) -->
                             <span class="tags has-addons">
+                                // TODO: line broken unintendedly
                                 <span class="tag is-success">Done</span>
                                 <span class="tag is-light">
                                     <!-- // TODO: Must be a &nbsp; escape? -->
