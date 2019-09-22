@@ -1,5 +1,7 @@
 # InTray
 
+![](https://api.travis-ci.org/Gowee/intray.svg?branch=master)
+
 InTray 📥 is a lightweight and simplistic CLI tool with a clean Web UI to facilitate collecting files over HTTP.
 
 Written in Rust and powered by the succinct web framework tide, InTray has reasonable performance and decent concurrency support. It provides nothing other than receiving upload, but with great convenience and reliability.
