@@ -1,5 +1,3 @@
-#![feature(async_await)]
-
 extern crate futures;
 extern crate tide;
 extern crate tokio;
