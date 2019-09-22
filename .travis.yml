@@ -7,6 +7,10 @@ rust:
   - nightly-2019-08-21
 services: docker
 sudo: required
+addons:
+  apt:
+    packages:
+      - upx
 
 env:
   global:
