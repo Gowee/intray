@@ -49,3 +49,4 @@ ARGS:
 - [ ] Support HTTPS without the need to setup Web server separatedly.
 - [ ] Support to limit space usage.
 - [ ] Upgrade tokio{,-fs} to 0.2 (still in alpha).
+- [ ] Fallback Web-page to support IE11 and so on.

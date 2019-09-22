@@ -17,7 +17,7 @@ uuid = { version = "0.7", features = ["v4", "serde"] }
 bytes = "0.4"
 env_logger = "0.6"
 log = "0.4"
-structopt = "0.2"
+structopt = "0.3"
 lazy_static = "1"
 failure = "0.1"
 

@@ -8,7 +8,7 @@ use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "intray", about = "An simple intray to help receiving files.")]
-#[structopt(raw(setting = "ColoredHelp"))]
+#[structopt(global_settings(&[ColoredHelp]))]
 pub struct Opt {
     /// IP address to bind on
     #[structopt(short = "a", long = "ip-addr", default_value = "::")]
