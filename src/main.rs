@@ -73,6 +73,7 @@ fn main() {
         env::set_var("RUST_LOG", "intray=info");
     }
     env_logger::init();
+    OPT.warn_if_invalid();
 
     let app_state = State::new();
     let expiration_task = app_state.expire();
@@ -83,7 +84,8 @@ fn main() {
     app.at("/upload/start").post(handle_upload_start);
     app.at("/upload/:file/:chunk").post(handle_upload_chunk);
     app.at("/upload/finish").post(handle_upload_finish);
-    app.at("/upload/full/:name").post(handle_upload_full);
+    app.at("/upload/full").post(handle_upload_full_unnamed);
+    app.at("/upload/full/:name").post(handle_upload_full_named);
     let app_task = app.serve(OPT.socket_addr());
 
     let runtime = Runtime::new().expect("runtime");

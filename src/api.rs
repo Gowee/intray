@@ -113,8 +113,18 @@ struct ResponseUploadFull {
     error: Option<String>,
 }
 
-pub async fn handle_upload_full(mut ctx: Context<State>) -> EndpointResult {
-    let file_name: String = ctx.param("name").unwrap_or(String::from(""));
+// TODO: redundant trivial functions calling 
+pub async fn handle_upload_full_unnamed(ctx: Context<State>) -> EndpointResult {
+    handle_upload_full(ctx, String::from("")).await
+}
+
+pub async fn handle_upload_full_named(ctx: Context<State>) -> EndpointResult {
+    let file_name = ctx.param("name").unwrap_or(String::from(""));
+    handle_upload_full(ctx, file_name).await
+}
+
+pub async fn handle_upload_full(mut ctx: Context<State>, file_name: String) -> EndpointResult {
+    // TODO: Cow <str>
     let size: Option<usize> = match ctx.headers().get("Content-Length")
         {
             Some(v) => Some(v.to_str().client_err()?.parse().client_err()?),
