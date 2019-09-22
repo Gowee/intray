@@ -1,0 +1,146 @@
+# Based on the "trust" template v0.1.2
+# https://github.com/japaric/trust/tree/v0.1.2
+
+dist: trusty
+language: rust
+rust:
+  - nightly-2018-08-21
+services: docker
+sudo: required
+
+env:
+  global:
+    # TODO Update this to match the name of your project.
+    - CRATE_NAME=intray
+
+matrix:
+  include:
+    # Android
+    - if: tag IS present
+      env: TARGET=aarch64-linux-android DISABLE_TEST=1
+    # - env: TARGET=arm-linux-androideabi DISABLE_TEST=1
+    # - env: TARGET=armv7-linux-androideabi DISABLE_TEST=1
+    # - env: TARGET=i686-linux-android DISABLE_TEST=1
+    # - env: TARGET=x86_64-linux-android DISABLE_TEST=1
+
+    # iOS
+    - if: tag IS present
+      env: TARGET=aarch64-apple-ios DISABLE_TEST=1
+      os: osx
+    # - env: TARGET=armv7-apple-ios DISABLE_TEST=1
+    #   os: osx
+    # - env: TARGET=armv7s-apple-ios DISABLE_TEST=1
+    #   os: osx
+    # - env: TARGET=i386-apple-ios DISABLE_TEST=1
+    #   os: osx
+    # - env: TARGET=x86_64-apple-ios DISABLE_TEST=1
+    #   os: osx
+
+    # Linux
+    - env: TARGET=x86_64-unknown-linux-musl
+    - if: tag IS present
+      env: TARGET=mips-unknown-linux-musl DISABLE_TEST=1
+    - if: tag IS present
+      env: TARGET=mipsel-unknown-linux-musl DISABLE_TEST=1
+    - if: tag IS present
+      env: TARGET=arm-unknown-linux-musleabi DISABLE_TEST=1
+    - if: tag IS present
+      env: TARGET=armv7-unknown-linux-musleabihf DISABLE_TEST=1
+    - if: tag IS present
+      env: TARGET=aarch64-unknown-linux-musl DISABLE_TEST=1
+    # - env: TARGET=aarch64-unknown-linux-musl
+    # - env: TARGET=arm-unknown-linux-gnueabi
+    # - env: TARGET=armv7-unknown-linux-gnueabihf
+    # - env: TARGET=i686-unknown-linux-gnu
+    # - env: TARGET=i686-unknown-linux-musl
+    # - env: TARGET=mips-unknown-linux-gnu
+    # - env: TARGET=mips64-unknown-linux-gnuabi64
+    # - env: TARGET=mips64el-unknown-linux-gnuabi64
+    # - env: TARGET=mipsel-unknown-linux-gnu
+    # - env: TARGET=powerpc-unknown-linux-gnu
+    # - env: TARGET=powerpc64-unknown-linux-gnu
+    # - env: TARGET=powerpc64le-unknown-linux-gnu
+    # - env: TARGET=s390x-unknown-linux-gnu DISABLE_TEST=1
+    # - env: TARGET=x86_64-unknown-linux-gnu
+    # - env: TARGET=x86_64-unknown-linux-musl
+
+    # OSX
+    - if: tag IS present
+      env: TARGET=i686-apple-darwin DISABLE_TEST=1
+      os: osx
+    - if: tag IS present
+      env: TARGET=x86_64-apple-darwin DISABLE_TEST=1
+      os: osx
+
+    # *BSD
+    - if: tag IS present
+      env: TARGET=i686-unknown-freebsd DISABLE_TEST=1
+    - if: tag IS present
+      env: TARGET=x86_64-unknown-freebsd DISABLE_TEST=1
+    # - env: TARGET=x86_64-unknown-netbsd DISABLE_TEST=1
+
+    # Windows
+    - if: tag IS present
+      env: TARGET=x86_64-pc-windows-gnu DISABLE_TEST=1
+
+    # Bare metal
+    # These targets don't support std and as such are likely not suitable for
+    # most crates.
+    # - env: TARGET=thumbv6m-none-eabi
+    # - env: TARGET=thumbv7em-none-eabi
+    # - env: TARGET=thumbv7em-none-eabihf
+    # - env: TARGET=thumbv7m-none-eabi
+
+    # Testing other channels
+    # - env: TARGET=x86_64-unknown-linux-gnu
+    #   rust: nightly
+    # - env: TARGET=x86_64-apple-darwin
+    #   os: osx
+    #   rust: nightly
+
+before_install:
+  - set -e
+  - rustup self update
+
+install:
+  - sh ci/install.sh
+  - source ~/.cargo/env || true
+
+script:
+  - bash ci/script.sh
+
+after_script: set +e
+
+before_deploy:
+  - sh ci/before_deploy.sh
+
+deploy:
+  # TODO update `api_key.secure`
+  # - Create a `public_repo` GitHub token. Go to: https://github.com/settings/tokens/new
+  # - Encrypt it: `travis encrypt 0123456789012345678901234567890123456789
+  # - Paste the output down here
+  api_key:
+    secure: EvGoow1JINnmlmUYmP/gTsvBtYJrWh7uJp43uoclOGtpJq12xUbt7sVX1M94rElIyYsMSOicwGJnmOoG1u6O2xH/Yv0pLc1m+5UXgvS5REcv1b1czbk2o9KoiT7tjWl+0EzhIY13z0OInU0n/xpJHLX0nIzO5BKGVI6d7MvzV0vpYl0rPLoeehKaGbX9+SBGDFzvz+v2hpz5p1aTqa6CheeiGGekkHTxYNMUFxUPrRE/lOOx8FDtZYGTuGzL3DfQZmoMgl0MIqr/S52gEdbYxh490sgbM2JXWNWbDg8nxvE9EjmOSC6jfJKCd36PCPRk4gVcyJ3ToxJcgDoqDrzSA7BKLuB2sXou9jstKBLoVYGd7JxF/kDBxQj7vTD9stMTrP3WeOWTL50QXYk0vlxBc5kkLmc6qXxAm/Q3N+l8Hg5aXS4otmTqhN/YoGlKNccbiqcSX+4d12lxUrqljyzBxcLCexcWaw/lDbgmKkNQA2LjKLoZl6Bn/hVEiJ4GKI91N23aByuY6eksJ9VyblxI/eNwMmW57DzPyAw/qHY7d6uL5wEmUcBqx1d5BAo84IuX1Pt0LHst6YvFn/w1kkk4GEGeoPQSwddlH2wBjd0Bjb9qQogpbKVZRPJ1PHyIi5e3bSREOVSXYzeAX50FNUI8N0s2QftI1Po+vRhQGt5MDsU=
+  file_glob: true
+  file: $CRATE_NAME-$TARGET
+  #file: $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
+  on:
+    # condition: $TRAVIS_RUST_VERSION = stable
+    tags: true
+  provider: releases
+  skip_cleanup: true
+
+cache: cargo
+before_cache:
+  # Travis can't cache files that are not readable by "others"
+  - chmod -R a+r $HOME/.cargo
+
+branches:
+  only:
+    # release tags
+    # - /^v\d+\.\d+\.\d+.*$/
+    - master
+
+notifications:
+  email:
+    on_success: never
