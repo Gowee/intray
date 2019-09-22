@@ -1,8 +1,12 @@
 [package]
 name = "intray"
 version = "0.3.0"
-authors = ["Hung-I Wang <whygowe@gmail.com>"]
 edition = "2018"
+authors = ["Hung-I Wang <whygowe@gmail.com>"]
+license-file = "LICENSE"
+description = "An intray to facilitate collecting files."
+repository = "https://github.com/Gowee/intray"
+categories = ["command-line-utilities", "web-programming::http-server"]
 
 [dependencies]
 tide = { git = "https://github.com/rustasync/tide.git" }

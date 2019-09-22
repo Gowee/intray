@@ -7,7 +7,7 @@ use structopt::clap::AppSettings::ColoredHelp;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "intray", about = "An simple intray to help receiving files.")]
+#[structopt(name = "intray", about = "An intray to facilitate collecting files.")]
 #[structopt(global_settings(&[ColoredHelp]))]
 pub struct Opt {
     /// IP address to bind on
