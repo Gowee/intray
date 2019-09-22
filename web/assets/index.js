@@ -147,7 +147,7 @@ async function upload_worker(token) {
             const statusContainer = taskItem.querySelector("[name=status]")
             const progressBar = statusProgress.querySelector("[name=progress]"); // Should before replaceChild
             statusContainer.replaceChild(statusProgress, statusContainer.firstElementChild);
-            const progress_fn = function(progress) {
+            const progress_fn = function (progress) {
                 progressBar.textContent = `${progress} %`;
                 progressBar.setAttribute("value", progress);
             };
@@ -184,59 +184,59 @@ async function upload(task) {
             headers: { 'Content-Type': "application/json" },
             body: JSON.stringify(metadata)
         })).json();
-    if (job.ok) {
-        const chunk_number = Math.ceil(file.size / CHUNK_SIZE);
-        const file_token = job.file_token;
-        for (let chunk_index = 0; chunk_index < chunk_number; chunk_index++) {
-            let chunk_ok;
-            for (let retry = 0; retry < CHUNK_RETRY; retry++) {
-                try {
-                    const chunk = await (await fetch(`/upload/${file_token}/${chunk_index}`, {
-                        method: "POST",
-                        headers: { 'Content-Type': "application/octet-stream" },
-                        body: file.slice(chunk_index * CHUNK_SIZE, (chunk_index + 1) * CHUNK_SIZE)
-                    })).json();
-                    if (chunk.ok) {
-                        task.setProgress((chunk_index + 1) / (chunk_number) * 100);
-                        console.log(`Uploaded ${chunk_index + 1}/${chunk_number} chunks.`);
-                        chunk_ok = true;
-                        break;
+        if (job.ok) {
+            const chunk_number = Math.ceil(file.size / CHUNK_SIZE);
+            const file_token = job.file_token;
+            for (let chunk_index = 0; chunk_index < chunk_number; chunk_index++) {
+                let chunk_ok;
+                for (let retry = 0; retry < CHUNK_RETRY; retry++) {
+                    try {
+                        const chunk = await (await fetch(`/upload/${file_token}/${chunk_index}`, {
+                            method: "POST",
+                            headers: { 'Content-Type': "application/octet-stream" },
+                            body: file.slice(chunk_index * CHUNK_SIZE, (chunk_index + 1) * CHUNK_SIZE)
+                        })).json();
+                        if (chunk.ok) {
+                            task.setProgress((chunk_index + 1) / (chunk_number) * 100);
+                            console.log(`Uploaded ${chunk_index + 1}/${chunk_number} chunks.`);
+                            chunk_ok = true;
+                            break;
+                        }
+                    }
+                    catch (e) {
+                        console.log(`Failed: ${e}, retrying.`);
+                        throw e;
                     }
                 }
-                catch (e) {
-                    console.log(`Failed: ${e}, retrying.`);
-                    throw e;
+                if (chunk_ok !== true) {
+                    throw new Error(`Maximum retry times reached.`)
                 }
             }
-            if (chunk_ok !== true) {
-                throw new Error(`Maximum retry times reached.`)
-            }
-        }
-        try {
-            const result = await (await fetch("/upload/finish", {
-                'method': "POST",
-                headers: { 'Content-Type': "application/json" },
-                body: JSON.stringify({
-                    file_token: file_token
-                })
-            })).json();
-            if (result.ok) {
-                const elapsed = Date.now() - start_at;
-                console.log(`Successfully uploaded ${file.name} with \
+            try {
+                const result = await (await fetch("/upload/finish", {
+                    'method': "POST",
+                    headers: { 'Content-Type': "application/json" },
+                    body: JSON.stringify({
+                        file_token: file_token
+                    })
+                })).json();
+                if (result.ok) {
+                    const elapsed = Date.now() - start_at;
+                    console.log(`Successfully uploaded ${file.name} with \
                         ${file.size / 1024 / 1024} MiBs in ${elapsed / 1000} seconds at \
                         ${file.size / 1024 / 1024 / (elapsed / 1000)} MiB/sec.`);
+                }
+                else {
+                    throw new Error(`server error: ${result.error}`);
+                }
             }
-            else {
-                throw new Error(`server error: ${result.error}`);
+            catch (e) {
+                throw new Error(`Error when finishing: ${e}`)
             }
         }
-        catch (e) {
-            throw new Error(`Error when finishing: ${e}`)
+        else {
+            throw new Error(`server error: ${job.error}`);
         }
-    }
-    else {
-        throw new Error(`server error: ${job.error}`);
-    }
     }
     catch (e) {
         throw new Error(`Error when initialzing: ${e}`);
