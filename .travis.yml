@@ -1,7 +1,7 @@
 # Based on the "trust" template v0.1.2
 # https://github.com/japaric/trust/tree/v0.1.2
 
-dist: trusty
+dist: bionic
 language: rust
 rust:
   - nightly-2019-08-21
@@ -13,6 +13,8 @@ env:
     # TODO Update this to match the name of your project.
     - CRATE_NAME=intray
 
+# TODO: DISABLE_TEST is unnecessary 
+#       because only one target is built regardless of tags. 
 matrix:
   include:
     # Android
@@ -74,9 +76,10 @@ matrix:
 
     # *BSD
     # - if: tag IS present
-      # env: TARGET=i686-unknown-freebsd DISABLE_TEST=1
-    - if: tag IS present
-      env: TARGET=x86_64-unknown-freebsd DISABLE_TEST=1
+    #   env: TARGET=i686-unknown-freebsd DISABLE_TEST=1
+    # TODO: there seems to be a bug in Rust currently, disabled this target
+    # - if: tag IS present
+    #   env: TARGET=x86_64-unknown-freebsd DISABLE_TEST=1
     # - env: TARGET=x86_64-unknown-netbsd DISABLE_TEST=1
 
     # Windows
