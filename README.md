@@ -9,9 +9,11 @@ Written in Rust and powered by the succinct web framework tide, InTray has reaso
 It can be an alternative to `python -m pyftpdlib`, even though it does not cover all usage scenarios of the latter.
 
 ## Install
-`cargo install intray`
+~~`cargo install intray`~~
 
-*TODO: Instructions on downloading from releases*
+(Not published yet because some upstream denpendency are not published.)
+
+Visit https://github.com/Gowee/intray/releases .
 
 ## Interface
 
