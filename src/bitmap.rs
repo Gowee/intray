@@ -29,7 +29,7 @@ impl BitMap for Vec<u8> {
             self.resize(offset_by_byte + 1, 0);
         }
         let offset_in_byte = n % 8;
-        self[offset_by_byte] = self[offset_by_byte] | (1 << offset_in_byte);
+        self[offset_by_byte] |= 1 << offset_in_byte;
     }
 
     fn is_set_up_to(&self, n: usize) -> bool {
@@ -51,6 +51,7 @@ impl BitMap for Vec<u8> {
         self[offset_by_byte] & mask == mask
     }
 
+    #[allow(clippy::needless_return)]
     fn first_unset(&self) -> usize {
         for (offset_by_byte, &byte) in self.iter().enumerate() {
             if byte != 0xFF {

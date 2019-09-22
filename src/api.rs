@@ -119,7 +119,7 @@ pub async fn handle_upload_full_unnamed(ctx: Context<State>) -> EndpointResult {
 }
 
 pub async fn handle_upload_full_named(ctx: Context<State>) -> EndpointResult {
-    let file_name = ctx.param("name").unwrap_or(String::from(""));
+    let file_name = ctx.param("name").unwrap_or_else(|_| String::from(""));
     handle_upload_full(ctx, file_name).await
 }
 

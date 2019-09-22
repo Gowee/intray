@@ -45,8 +45,8 @@ async fn create_file(
 ) -> io::Result<(File, PathBuf)> {
     // TODO: Create temporary file for pending task and then rename it
     let path = PathBuf::from(file_name.as_ref());
-    let stem = path.file_stem().unwrap_or(OsStr::new("UnnamedFile"));
-    let ext = path.extension().or(ext_hint.as_ref().map(|i| i.as_ref()));
+    let stem = path.file_stem().unwrap_or_else(|| OsStr::new("UnnamedFile"));
+    let ext = path.extension().or_else(|| ext_hint.as_ref().map(|i| i.as_ref()));
 
     let mut count = 0;
     loop {

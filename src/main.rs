@@ -41,7 +41,7 @@ use state::State;
 struct Asset;
 
 fn handle_embedded_file(mut path: &str) -> Response {
-    if path.starts_with("/") {
+    if path.starts_with('/') {
         path = &path[1..];
     }
     match Asset::get(path) {
