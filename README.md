@@ -46,6 +46,15 @@ ARGS:
 ### Web UI
 ![A screenshot of Web UI](Screenshot.png)
 
+## Notes
+By default, intray listens on `[::]:8080`.
+
+For Linux-based system with `net.ipv6.bindv6only` be `0` (false), which is the default, it can be reached over either IPv4
+(e.g. `http://127.0.0.1:8080`) or IPv6 (e.g. `http://[::1]:8080`). See also [`IPV6(7)`](http://man7.org/linux/man-pages/man7/ipv6.7.html).
+
+For Windows and Linux other than the above, it can only be reached over IPv6. In case IPv4 is preferred, specify
+address manually.
+
 ## TODO
 - [x] Rewrite with tide (deprecating the original actix-web version).
 - [x] Rewrite Web UI (#1).
@@ -54,3 +63,4 @@ ARGS:
 - [ ] Support to limit space usage.
 - [ ] Upgrade tokio{,-fs} to 0.2 (still in alpha).
 - [ ] Fallback Web-page to support IE11 and so on.
+- [ ] Support retry failed task and pause/resume progressing tasks.
