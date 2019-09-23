@@ -7,6 +7,16 @@ const CONCURRENT_WORKER = 3;
 // Retry to upload chunks if failed for at most `CHUNK_RETRY` times;
 const CHUNK_RETRY = 3;
 
+if (Object.fromEntries == undefined) {
+    Object.fromEntries = function(entries) {
+        const object = new Object();
+        for (const [key, value] of entries) {
+            object[key] = value;
+        }
+        return object;
+    }
+}
+
 const logBase = (base, number) => Math.log(number) / Math.log(base);
 function size_to_readable(size) {
     if (size === 0) {
@@ -69,9 +79,9 @@ const fileNameList = document.getElementById("file-name-list");
 const uploadButton = document.getElementById("upload-button");
 const taskItemTemplate = document.getElementById("task-item-template");
 // TODO: in EDGE: SCRIPT438: Object doesn't support property or method 'fromEntries'
-const statusTemplate = new Object();
-["pending", "progress", "failed", "done"].forEach(
-    status => statusTemplate[status] = document.getElementById(`status-${status}-template`));
+const statusTemplate = Object.fromEntries(
+    ["pending", "progress", "failed", "done"].map(
+        status => [status, document.getElementById(`status-${status}-template`)]));
 let filesSelected = null;
 let taskId = 0;
 let workerToken = 0;
@@ -122,8 +132,9 @@ async function onUpload() {
         taskItem.querySelector("[name=id]").textContent = taskId;
         taskItem.querySelector("[name=id]").title = `Submitted: ${new Date()}`;
         taskItem.querySelector("[name=name]").textContent = file.name;
+        taskItem.querySelector("[name=name]").title = `Last Modified: ${file.lastModifiedDate}`;
         taskItem.querySelector("[name=size]").textContent = size_to_readable(file.size);
-        taskItem.querySelector("[name=size]").title = file.size;
+        taskItem.querySelector("[name=size]").title = `${file.size} Bytes`;
         taskItem.querySelector("[name=status]").appendChild(statusPending);
         taskList.insertBefore(taskItem, taskList.firstElementChild);
         TASKS.pending.push(new Task(taskId, file));

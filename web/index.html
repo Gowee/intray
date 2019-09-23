@@ -10,6 +10,7 @@
     <style>
         html {
             height: 100%;
+            /* scroll set by bulma */
             overflow-y: auto !important;
         }
 
@@ -113,6 +114,7 @@
                         </template>
                         <template id="status-progress-template">
                             <progress class="progress is-primary" name="progress" max="100"></progress>
+                            <!-- <button class="button is-primary"></button> -->
                         </template>
                         <template id="status-failed-template">
                             <span class="tag is-danger">Failed</span>
@@ -120,7 +122,6 @@
                         <template id="status-done-template">
                             <!-- TODO: template & slot (no support in IE(?) and ...(?)) -->
                             <span class="tags has-addons status-tags">
-                                <!-- TODO: line broken unintendedly -->
                                 <span class="tag is-success">Done</span>
                                 <span class="tag is-light">
                                     <!-- // TODO: Must be a &nbsp; escape? -->
