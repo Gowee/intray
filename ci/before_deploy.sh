@@ -4,9 +4,12 @@ set -ex
 
 try_compress() {
     file=$1
-    target=$(objdump -a $file | grep -oP "(?<=format )[\w-]+" | tr -d '\n' || "")
-    if [ -n "$target" ] && strip -v $file --target $target; then
-        echo "Stripped $file (target: $target)."
+    header=$(objdump -f $file)
+    if ! echo $header | grep -P "architecture: \s*UNKNOWN" ; then
+        target=$(echo $header| grep -oP "(?<=format )\s*[\w-]+" | tr -d '\n' || "")
+        if [ -n "$target" ] && strip -v $file --target $target; then
+            echo "Stripped $file (target: $target)."
+        fi
     fi
     if upx $file; then
         echo "Upx $file done."
