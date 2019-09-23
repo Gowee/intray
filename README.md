@@ -1,6 +1,7 @@
 # InTray
 
-![](https://api.travis-ci.org/Gowee/intray.svg?branch=master)
+![Build Status](https://api.travis-ci.org/Gowee/intray.svg?branch=master)
+[![Lastest Release](https://img.shields.io/github/release/Gowee/intray.svg)](https://github.com/Gowee/intray/releases/latest/)
 
 InTray 📥 is a lightweight and simplistic CLI tool with a clean Web UI to facilitate collecting files over HTTP.
 
