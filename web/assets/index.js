@@ -69,9 +69,9 @@ const fileNameList = document.getElementById("file-name-list");
 const uploadButton = document.getElementById("upload-button");
 const taskItemTemplate = document.getElementById("task-item-template");
 // TODO: in EDGE: SCRIPT438: Object doesn't support property or method 'fromEntries'
-const statusTemplate = Object.fromEntries(
-    ["pending", "progress", "failed", "done"].map(
-        status => [status, document.getElementById(`status-${status}-template`)]));
+const statusTemplate = new Object();
+["pending", "progress", "failed", "done"].forEach(
+    status => statusTemplate[status] = document.getElementById(`status-${status}-template`));
 let filesSelected = null;
 let taskId = 0;
 let workerToken = 0;
