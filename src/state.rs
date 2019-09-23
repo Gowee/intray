@@ -6,7 +6,7 @@ use futures::{
 use tokio::{
     fs::{remove_file, File, OpenOptions},
     io::{shutdown, write_all},
-    prelude::{Async as Async01, Future as Future01, Stream as Stream01},
+    prelude::{future::poll_fn, Async as Async01, Future as Future01, Stream as Stream01},
     timer::{delay_queue::Key as DQKey, DelayQueue, Interval},
 };
 use uuid::Uuid as UUID;
@@ -45,8 +45,12 @@ async fn create_file(
 ) -> io::Result<(File, PathBuf)> {
     // TODO: Create temporary file for pending task and then rename it
     let path = PathBuf::from(file_name.as_ref());
-    let stem = path.file_stem().unwrap_or_else(|| OsStr::new("UnnamedFile"));
-    let ext = path.extension().or_else(|| ext_hint.as_ref().map(|i| i.as_ref()));
+    let stem = path
+        .file_stem()
+        .unwrap_or_else(|| OsStr::new("UnnamedFile"));
+    let ext = path
+        .extension()
+        .or_else(|| ext_hint.as_ref().map(|i| i.as_ref()));
 
     let mut count = 0;
     loop {
@@ -168,30 +172,45 @@ impl PendingFile {
         Ok(size)
     }
 
-    pub fn finish(&mut self) -> Result<impl Future<Output = io::Result<()>>, Error> {
+    pub async fn finish(&mut self) -> Result<(), Error> {
         // avoid async fn here to minimize possile contention (but is it really necessary?)
         debug_assert!(self.filled <= self.chunk_number());
         if self.filled < self.chunk_number() {
             return Err(Error::FileNotFilledUp(self.chunks.first_unset()));
         }
-        let file = self.handle.take().expect("Take file out");
-        // TODO: move the temporary file (not implemented yet) to the final dest
-        Ok(shutdown(file).map(|_| ()).compat())
+        let mut file = self.handle.take().expect("Take file out");
+        poll_fn(|| file.poll_sync_data()).map_err(|e| Error::from(e)).compat().await?;
+        // self.handle = // Do not give back. O.W. the file will be removed when `self.drop`.
+        let _ = Some(shutdown(file).map_err(|e| Error::from(e)).compat().await?);
+        info!("Uploaded file: {:?}", &self.path);
+        Ok(())
+        // // TODO: move the temporary file (not implemented yet) to the final dest
+        // Ok(poll_fn(move || file.poll_sync_data(); file)
+        //     .and_then(|_| shutdown(file))
+        //     .map(|_| {
+        //         //info!("Uploaded file: {:?}", self.path.clone());
+        //         ()
+        //     })
+        //     .compat())
     }
 
     pub fn cancel(&mut self) -> impl Future<Output = io::Result<()>> {
-        // take the file out and drop it
-        let _ = self.handle.take().expect("Take file out");
-        // remove the file
-        remove_file(self.path.clone()).compat()
+        // take the file out and drop it,
+        // then remove the file
+        let path = self.path.clone();
+        shutdown(self.handle.take().expect("Take file out"))
+            .then(|_| remove_file(path)) // TODO: map to chain error?
+            .compat()
     }
 }
 
+// TODO: AsyncWrite::shutdown-list method for PendingFile
 impl Drop for PendingFile {
     fn drop(&mut self) {
         use std::fs::remove_file;
         // synchronously remove the file if it is not taked by `cancel`
-        if let Some(_) = self.handle {
+        // TODO: Is it really dropped & closed here?
+        if let Some(_) = self.handle.take() {
             debug!(
                 "Synchronously remove the file: {}, result: {:?}",
                 self.path.to_str().unwrap_or("INVALID_ENCODING_IN_PATH"),
@@ -412,10 +431,15 @@ impl State {
     }
 
     pub async fn finish_upload(&self, file_token: UUID) -> Result<(), Error> {
-        let mut file_queue = self.file_queue.lock().await;
-        let file = file_queue.acquire_file(file_token)?;
-        file_queue.discard(file_token)?;
-        file.lock().await.finish()?.await?;
+        let file = {
+            let mut file_queue = self.file_queue.lock().await;
+            let file = file_queue.acquire_file(file_token)?;
+            file_queue.discard(file_token)?;
+            file
+        };
+
+        let mut locked_file = file.lock().await;
+        locked_file.finish().await?;
         // make sure the file is finished
         Ok(())
     }
@@ -431,11 +455,13 @@ impl State {
         let (mut file, path) = create_file(name, Option::<String>::None).await?;
         let mut count = 0;
         while let Some(bytes) = data.next().await {
-            let bytes = try_finally!(bytes, { let _ = remove_file(path).compat().await; });
+            let bytes = try_finally!(bytes, {
+                let _ = remove_file(path).compat().await;
+            });
             count += bytes.as_ref().len();
             if let Some(size) = size {
                 if count > size {
-                    // TODO: delete file?
+                    // TODO: shutdown before remove?
                     let _ = remove_file(path).compat().await;
                     return Err(Error::DataNotFitIn(count));
                 }
@@ -450,7 +476,16 @@ impl State {
                 return Err(Error::FileNotFilledUp(count));
             }
         }
-        let _ = shutdown(file);
-        Ok(count)
+        poll_fn(|| file.poll_sync_data())
+            .compat()
+            .await
+            .map_err(|e| Error::from(e))?;
+        let result = shutdown(file)
+            .map(|_| count)
+            .map_err(|e| e.into())
+            .compat()
+            .await;
+        info!("Uploaded file: {:?}", path);
+        result
     }
 }

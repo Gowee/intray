@@ -113,7 +113,7 @@ struct ResponseUploadFull {
     error: Option<String>,
 }
 
-// TODO: redundant trivial functions calling 
+// TODO: redundant trivial functions calling
 pub async fn handle_upload_full_unnamed(ctx: Context<State>) -> EndpointResult {
     handle_upload_full(ctx, String::from("")).await
 }
@@ -125,11 +125,10 @@ pub async fn handle_upload_full_named(ctx: Context<State>) -> EndpointResult {
 
 pub async fn handle_upload_full(mut ctx: Context<State>, file_name: String) -> EndpointResult {
     // TODO: Cow <str>
-    let size: Option<usize> = match ctx.headers().get("Content-Length")
-        {
-            Some(v) => Some(v.to_str().client_err()?.parse().client_err()?),
-            None => None
-        };
+    let size: Option<usize> = match ctx.headers().get("Content-Length") {
+        Some(v) => Some(v.to_str().client_err()?.parse().client_err()?),
+        None => None,
+    };
     let data = ctx.take_body();
     Ok(response::json(
         match ctx.state().put_full(file_name, size, data).await {
