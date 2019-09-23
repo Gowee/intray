@@ -120,8 +120,10 @@ async function onUpload() {
         console.log(file);
         const statusPending = document.importNode(statusTemplate.pending.content, true);
         taskItem.querySelector("[name=id]").textContent = taskId;
+        taskItem.querySelector("[name=id]").title = `Submitted: ${new Date()}`;
         taskItem.querySelector("[name=name]").textContent = file.name;
         taskItem.querySelector("[name=size]").textContent = size_to_readable(file.size);
+        taskItem.querySelector("[name=size]").title = file.size;
         taskItem.querySelector("[name=status]").appendChild(statusPending);
         taskList.insertBefore(taskItem, taskList.firstElementChild);
         TASKS.pending.push(new Task(taskId, file));
@@ -154,6 +156,8 @@ async function upload_worker(token) {
             try {
                 const result = await upload(task);
                 const statusDone = document.importNode(statusTemplate.done.content, true);
+                const size_per_sec = task.file.size / (result / 1000);
+                statusDone.firstElementChild.title = `Speed: ${size_to_readable(size_per_sec)}/s`;
                 statusDone.querySelector("[name=elapsed]").textContent = period_to_readable(result);
                 statusContainer.replaceChild(statusDone, statusContainer.firstElementChild);
             }

@@ -25,6 +25,10 @@
         tr.task-item > td[name=name] {
             word-break: break-all;
         }
+
+        span.status-tags {
+            flex-wrap: nowrap;
+        }
     </style>
     <link rel="stylesheet" href="assets/bulma.min.css">
 </head>
@@ -115,7 +119,7 @@
                         </template>
                         <template id="status-done-template">
                             <!-- TODO: template & slot (no support in IE(?) and ...(?)) -->
-                            <span class="tags has-addons">
+                            <span class="tags has-addons status-tags">
                                 <!-- TODO: line broken unintendedly -->
                                 <span class="tag is-success">Done</span>
                                 <span class="tag is-light">
