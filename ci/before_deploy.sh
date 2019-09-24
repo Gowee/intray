@@ -7,7 +7,9 @@ try_compress() {
     if [ $TRAVIS_OS_NAME = "osx" ]; then
         # https://stackoverflow.com/questions/56981572/how-to-update-objdump-got-unknown-command-line-argument-m
         # > objdump on a Mac is llvm-objdump, not GNU Binutils objdump
+        stat $file
         strip $file || true
+        stat $file
     else
         local header=$(objdump -f $file)
         if ! echo $header | grep -P "architecture: \s*UNKNOWN" ; then
