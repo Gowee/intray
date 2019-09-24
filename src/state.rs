@@ -179,7 +179,10 @@ impl PendingFile {
             return Err(Error::FileNotFilledUp(self.chunks.first_unset()));
         }
         let mut file = self.handle.take().expect("Take file out");
-        poll_fn(|| file.poll_sync_data()).map_err(|e| Error::from(e)).compat().await?;
+        poll_fn(|| file.poll_sync_data())
+            .map_err(|e| Error::from(e))
+            .compat()
+            .await?;
         // self.handle = // Do not give back. O.W. the file will be removed when `self.drop`.
         let _ = Some(shutdown(file).map_err(|e| Error::from(e)).compat().await?);
         info!("Uploaded file: {:?}", &self.path);

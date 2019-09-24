@@ -1,10 +1,11 @@
-use std::env::current_dir;
-use std::io;
-use std::net::{IpAddr, SocketAddr};
-use std::path::{Path, PathBuf};
+use std::{
+    env::current_dir,
+    io,
+    net::{IpAddr, SocketAddr},
+    path::{Path, PathBuf},
+};
 
-use structopt::clap::AppSettings::ColoredHelp;
-use structopt::StructOpt;
+use structopt::{clap::AppSettings::ColoredHelp, StructOpt};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "intray", about = "An intray to facilitate collecting files.")]
