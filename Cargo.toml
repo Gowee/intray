@@ -19,7 +19,7 @@ futures-preview = {version = "0.3.0-alpha.18", features = ["compat", "io-compat"
 #chrono = "0.4"
 uuid = { version = "0.7", features = ["v4", "serde"] }
 bytes = "0.4"
-env_logger = "0.6"
+env_logger = "0.7"
 log = "0.4"
 structopt = "0.3"
 lazy_static = "1"

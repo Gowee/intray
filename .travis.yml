@@ -12,6 +12,10 @@ addons:
     packages:
       - upx
       - binutils-multiarch
+  homebrew:
+    update: true
+    packages:
+      - upx
 
 env:
   global:

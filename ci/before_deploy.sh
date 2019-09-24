@@ -3,16 +3,26 @@
 set -ex
 
 try_compress() {
-    file=$1
-    header=$(objdump -f $file)
-    if ! echo $header | grep -P "architecture: \s*UNKNOWN" ; then
-        target=$(echo $header| grep -oP "(?<=format )\s*[\w-]+" | tr -d '\n' || "")
-        if [ -n "$target" ] && strip -v $file --target $target; then
-            echo "Stripped $file (target: $target)."
+    local file=$1
+    if [ $TRAVIS_OS_NAME = "osx" ]; then
+        # https://stackoverflow.com/questions/56981572/how-to-update-objdump-got-unknown-command-line-argument-m
+        # > objdump on a Mac is llvm-objdump, not GNU Binutils objdump
+        stat $file
+        strip $file || true
+        objdump -file-headers $file || true
+        stat $file
+    else
+        local header=$(objdump -f $file)
+        if ! echo $header | grep -P "architecture: \s*UNKNOWN" ; then
+            local target=$(echo $header| grep -oP "(?<=format )\s*[\w-]+" | tr -d '\n' || "")
+            if [ -n "$target" ] ; then
+                strip -v $file --target $target
+                objdump -f $file || true
+            fi
         fi
     fi
-    if upx $file; then
-        echo "Upx $file done."
+    if command -v upx ; then
+        upx $file || true
     fi
 }
 
