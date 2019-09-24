@@ -3,43 +3,44 @@
 set -ex
 
 try_compress() {
-    file=$1
-    objdump --help
-    objdump -i
-    objdump -a $file
-    header=$(objdump -f $file)
-    if ! echo $header | grep -P "architecture: \s*UNKNOWN" ; then
-        target=$(echo $header| grep -oP "(?<=format )\s*[\w-]+" | tr -d '\n' || "")
-        if [ -n "$target" ] && strip -v $file --target $target; then
-            echo "Stripped $file (target: $target)."
+    if [ $TRAVIS_OS_NAME = "osx" ]; then
+        # https://stackoverflow.com/questions/56981572/how-to-update-objdump-got-unknown-command-line-argument-m
+        # > objdump on a Mac is llvm-objdump, not GNU Binutils objdump
+        strip $file || true
+    else
+        local header=$(objdump -f $file)
+        if ! echo $header | grep -P "architecture: \s*UNKNOWN" ; then
+            local target=$(echo $header| grep -oP "(?<=format )\s*[\w-]+" | tr -d '\n' || "")
+            if [ -n "$target" ] ; then
+                strip -v $file --target $target
+            fi
         fi
     fi
-    if upx $file; then
-        echo "Upx $file done."
+    if command -v upx ; then
+        upx $file || true
     fi
 }
 
 main() {
-    local src=$(pwd) \
-          stage=
+    # local src=$(pwd) \
+    #       stage=
 
-    case $TRAVIS_OS_NAME in
-        linux)
-            stage=$(mktemp -d)
-            ;;
-        osx)
-            stage=$(mktemp -d -t tmp)
-            ;;
-    esac
+    # case $TRAVIS_OS_NAME in
+    #     linux)
+    #         stage=$(mktemp -d)
+    #         ;;
+    #     osx)
+    #         stage=$(mktemp -d -t tmp)
+    #         ;;
+    # esac
 
     test -f Cargo.lock || cargo generate-lockfile
 
     cross rustc --bin $CRATE_NAME --target $TARGET --release -- -C lto
     
+    local suffix=
     if [ $TARGET = x86_64-pc-windows-gnu ]; then
         suffix=".exe"
-    else
-        suffix=""
     fi
     origin=target/$TARGET/release/$CRATE_NAME$suffix
     try_compress $origin
