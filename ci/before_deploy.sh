@@ -4,6 +4,9 @@ set -ex
 
 try_compress() {
     file=$1
+    objdump --help
+    objdump -i
+    objdump -a $file
     header=$(objdump -f $file)
     if ! echo $header | grep -P "architecture: \s*UNKNOWN" ; then
         target=$(echo $header| grep -oP "(?<=format )\s*[\w-]+" | tr -d '\n' || "")
