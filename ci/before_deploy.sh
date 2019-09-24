@@ -23,7 +23,8 @@ try_compress() {
 }
 
 main() {
-    local src=$(pwd)# \
+    local src=$(pwd)
+    # \
     #       stage=
 
     # case $TRAVIS_OS_NAME in

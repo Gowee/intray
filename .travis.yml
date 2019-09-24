@@ -13,6 +13,7 @@ addons:
       - upx
       - binutils-multiarch
   homebrew:
+    update: true
     packages:
       - upx
 
