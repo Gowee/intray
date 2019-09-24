@@ -3,7 +3,7 @@
 set -ex
 
 try_compress() {
-    local $file=$1
+    local file=$1
     if [ $TRAVIS_OS_NAME = "osx" ]; then
         # https://stackoverflow.com/questions/56981572/how-to-update-objdump-got-unknown-command-line-argument-m
         # > objdump on a Mac is llvm-objdump, not GNU Binutils objdump
