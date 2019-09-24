@@ -146,6 +146,7 @@ branches:
     # release tags
     - /^v\d+\.\d+\.\d+.*$/
     - master
+    - test
 
 notifications:
   email:
