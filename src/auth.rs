@@ -3,7 +3,7 @@ use futures::future::BoxFuture;
 
 use base64::decode as base64_decode;
 use tide::{
-    http::{response::Builder as ResponseBuilder, StatusCode},
+    http::{response::Builder as ResponseBuilder, StatusCode, HeaderValue},
     middleware::{Middleware, Next},
     Context, Response,
 };
@@ -49,27 +49,29 @@ impl SimplisticHTTPBasicAuth {
 
 impl<State: Send + Sync + 'static> Middleware<State> for SimplisticHTTPBasicAuth {
     fn handle<'a>(&'a self, cx: Context<State>, next: Next<'a, State>) -> BoxFuture<'a, Response> {
-        Box::pin(async move {
-            let t = cx.headers().get("Authorization").and_then(|value| {
-                let authorization = value.to_str().ok()?;
-                let (_type, credentials) = {
-                    // A trailing space is expected to be in `t`.
-                    let (t, c) = authorization.split_at(authorization.find(' ')?);
-                    (t.trim(), c.trim())
-                };
-                if _type.eq_ignore_ascii_case("Basic") {
-                    Some(String::from_utf8(base64_decode(credentials).ok()?).ok()?)
-                } else {
-                    None
-                }
-            });
-            match t {
-                Some(ref credentials) if self.authenticate(credentials) => {
-                    trace!("An request is authenticated with {} .", credentials);
-                    next.run(cx).await
-                }
-                _ => self.unauthorized(),
+        let credentials = cx.headers().get("Authorization").and_then(|value| {
+            let (_type, credentials) = parse_authorization(value)?;
+            if _type.eq_ignore_ascii_case("Basic") {
+                Some(String::from_utf8(base64_decode(credentials).ok()?).ok()?)
+            } else {
+                None
             }
+        });
+        Box::pin(async move {
+        match credentials {
+            Some(ref credentials) if self.authenticate(credentials) => {
+                trace!("An request is authenticated with {} .", credentials);
+                next.run(cx).await
+            }
+            _ => self.unauthorized(),
+        }
         })
     }
+}
+
+fn parse_authorization(header_value: &HeaderValue) -> Option<(&str, &str)> {
+    let value = header_value.to_str().ok()?;
+    // A trailing space is expected to be in `t`.
+    let (_type, credentials) = value.split_at(value.find(' ')?);
+    Some((_type.trim(), credentials.trim()))
 }

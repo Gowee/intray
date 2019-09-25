@@ -44,6 +44,10 @@ impl Opt {
         SocketAddr::new(self.ip_addr, self.port)
     }
 
+    pub fn is_auth_enabled(&self) -> bool {
+        return !self.auth_credentials.is_empty()
+    }
+
     pub fn credentials_match(&self, credentials: impl AsRef<str>) -> bool {
         let credentials = credentials.as_ref();
         self.auth_credentials.iter().any(|c| c == credentials)

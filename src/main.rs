@@ -52,7 +52,9 @@ fn main() {
     let expiration_task = app_state.expire();
     let mut app = App::with_state(app_state);
     app.middleware(RequestLogger::new());
-    app.middleware(HTTPBasicAuth::new());
+    if OPT.is_auth_enabled() {
+        app.middleware(HTTPBasicAuth::new());
+    }
     app.at("/").get(handle_index);
     app.at("/assets/*path").get(handle_assets);
     app.at("/upload/start").post(handle_upload_start);
