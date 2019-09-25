@@ -24,6 +24,7 @@ log = "0.4"
 structopt = "0.3"
 lazy_static = "1"
 failure = "0.1"
+base64 = "0.10"
 
 [patch.crates-io]
 http-service = { git = "https://github.com/rustasync/http-service", branch = "master" }

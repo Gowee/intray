@@ -5,11 +5,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use structopt::{clap::AppSettings::ColoredHelp, StructOpt};
+use structopt::{
+    clap::AppSettings::{ColoredHelp, DeriveDisplayOrder},
+    StructOpt,
+};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "intray", about = "An intray to facilitate collecting files.")]
-#[structopt(global_settings(&[ColoredHelp]))]
+#[structopt(global_settings(&[ColoredHelp, DeriveDisplayOrder]))]
 pub struct Opt {
     /// IP address to bind on
     #[structopt(short = "a", long = "ip-addr", default_value = "::")]
@@ -18,6 +21,14 @@ pub struct Opt {
     /// Directory to store received files
     #[structopt(short = "d", long = "dir", parse(from_os_str), default_value = "./")]
     dir: PathBuf,
+
+    /// Credentials for HTTP Basic Auth in the format "USERNAME:PASSWD"
+    #[structopt(short = "c", long = "credentials", env = "CREDENTIALS")]
+    auth_credentials: Vec<String>, // TODO: HashSet?
+
+    /// Realm to send in `WWW-Authenticate` HTTP header for HTTP Basic Auth
+    #[structopt(short = "r", long = "realm", default_value = "Intray")]
+    pub auth_realm: String,
 
     /// Port to bind on
     #[structopt(name = "PORT", default_value = "8080")]
@@ -31,6 +42,11 @@ impl Opt {
 
     pub fn socket_addr(&self) -> SocketAddr {
         SocketAddr::new(self.ip_addr, self.port)
+    }
+
+    pub fn credentials_match(&self, credentials: impl AsRef<str>) -> bool {
+        let credentials = credentials.as_ref();
+        self.auth_credentials.iter().any(|c| c == credentials)
     }
 
     pub fn warn_if_invalid(&self) {
@@ -48,6 +64,10 @@ impl Opt {
             //, self.dir.canonicalize().unwrap_or_else(|_| self.dir.clone()));
         }
         // Path::canonicalize is not proper here because it check the existence of the file of the path.
+
+        if self.auth_credentials.len() >= 10 {
+            warn!("Too many authentication credentials specified. Intray may suffer from performance penalty.")
+        }
     }
 }
 

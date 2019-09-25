@@ -20,18 +20,22 @@ Visit https://github.com/Gowee/intray/releases .
 
 ### Server
 ```
-intray [OPTIONS] [PORT]
+intray [OPTIONS] [--] [port]
 
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
 
 OPTIONS:
-    -d, --dir <dir>            Directory to store received files [default: ./]
-    -a, --ip-addr <ip_addr>    IP address to bind on [default: ::]
+    -a, --ip-addr <ip-addr>                    IP address to bind on [default: ::]
+    -d, --dir <dir>                            Directory to store received files [default: ./]
+    -c, --credentials <auth-credentials>...    Credentials for HTTP Basic Auth in the format "USERNAME:PASSWD" [env:
+                                               CREDENTIALS=]
+    -r, --realm <auth-realm>                   Realm to send in `WWW-Authenticate` HTTP header for HTTP Basic Auth
+                                               [default: Intray]
 
 ARGS:
-    <PORT>    Port to bind on [default: 8080]
+    <port>    Port to bind on [default: 8080]
 ```
 
 ### Upload with curl
@@ -71,7 +75,7 @@ Intray has poor compatibility with old-fashioned browsers, which unfortunately i
 - [x] Rewrite Web UI (#1).
 - [x] No chunking for small files.
 - [x] Better reverse proxy support.
-- [ ] Authentication.
+- [x] Authentication (HTTP Basic Auth).
 - [ ] Support HTTPS without the need to set up Web server separately.
 - [ ] Support to limit space usage.
 - [ ] Upgrade tokio{,-fs} to 0.2 (still in alpha).

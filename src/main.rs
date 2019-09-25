@@ -14,56 +14,31 @@ extern crate structopt;
 extern crate lazy_static;
 #[macro_use]
 extern crate failure;
+extern crate base64;
 
 use futures::{compat::Executor01CompatExt, future::FutureExt, task::SpawnExt};
-use mime_guess::guess_mime_type;
-use tide::{
-    http::{response::Builder as ResponseBuilder, StatusCode},
-    middleware::RequestLogger,
-    App, Context, EndpointResult, Response,
-};
+use tide::{middleware::RequestLogger, App, Context, EndpointResult};
 use tokio::{prelude::Future as Future01, runtime::Runtime};
 
 use std::env;
 
 mod api;
+mod auth;
 mod bitmap;
 mod error;
 mod opt;
 mod state;
+mod web;
 
-use api::*;
-use opt::OPT;
-use state::State;
-
-#[derive(RustEmbed)]
-#[folder = "web/"]
-struct Asset;
-
-fn handle_embedded_file(mut path: &str) -> Response {
-    if path.starts_with('/') {
-        path = &path[1..];
-    }
-    match Asset::get(path) {
-        Some(content) => ResponseBuilder::new()
-            .status(StatusCode::OK)
-            .header("Content-Type", guess_mime_type(path).as_ref())
-            .body(content.as_ref().into())
-            .unwrap(),
-        None => ResponseBuilder::new()
-            .status(StatusCode::NOT_FOUND)
-            .body("404 Not Found".into())
-            .unwrap(),
-    }
-}
+use crate::{api::*, auth::HTTPBasicAuth, opt::OPT, state::State, web::serve_embedded_file};
 
 async fn handle_index(_ctx: Context<State>) -> EndpointResult {
-    Ok(handle_embedded_file("/index.html"))
+    Ok(serve_embedded_file("/index.html"))
 }
 
 async fn handle_assets(ctx: Context<State>) -> EndpointResult {
     let path = ctx.uri().path();
-    Ok(handle_embedded_file(&path))
+    Ok(serve_embedded_file(&path))
 }
 
 fn main() {
@@ -77,6 +52,7 @@ fn main() {
     let expiration_task = app_state.expire();
     let mut app = App::with_state(app_state);
     app.middleware(RequestLogger::new());
+    app.middleware(HTTPBasicAuth::new());
     app.at("/").get(handle_index);
     app.at("/assets/*path").get(handle_assets);
     app.at("/upload/start").post(handle_upload_start);
