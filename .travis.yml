@@ -34,8 +34,8 @@ matrix:
     # # - env: TARGET=x86_64-linux-android DISABLE_TEST=1
 
     # iOS
-    - env: TARGET=aarch64-apple-ios DISABLE_TEST=1
-      os: osx
+    # - env: TARGET=aarch64-apple-ios DISABLE_TEST=1
+    #   os: osx
     # # - env: TARGET=armv7-apple-ios DISABLE_TEST=1
     # #   os: osx
     # # - env: TARGET=armv7s-apple-ios DISABLE_TEST=1
@@ -46,8 +46,8 @@ matrix:
     # #   os: osx
 
     # # Linux
-    # - env: TARGET=x86_64-unknown-linux-musl
-    # - if: tag IS present
+    - env: TARGET=x86_64-unknown-linux-musl
+    - if: tag IS present
     #   env: TARGET=mips-unknown-linux-musl DISABLE_TEST=1
     # - if: tag IS present
     #   env: TARGET=mipsel-unknown-linux-musl DISABLE_TEST=1
@@ -77,8 +77,8 @@ matrix:
     # # - if: tag IS present
     #   # env: TARGET=i686-apple-darwin DISABLE_TEST=1
     #   # os: osx
-    - env: TARGET=x86_64-apple-darwin DISABLE_TEST=1
-      os: osx
+    # - env: TARGET=x86_64-apple-darwin DISABLE_TEST=1
+    #   os: osx
 
     # # *BSD
     # # - if: tag IS present
