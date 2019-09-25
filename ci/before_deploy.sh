@@ -12,7 +12,7 @@ try_compress() {
         objdump -file-headers $file || true
         stat $file
     else
-        local header=$(objdump -f $file)
+        local header="$(objdump -f $file)"
         if ! echo $header | grep -P "architecture: \s*UNKNOWN" ; then
             local target=$(echo $header| grep -oP "(?<=format )\s*[\w-]+" | tr -d '\n' || "")
             if [ -n "$target" ] ; then
