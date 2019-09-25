@@ -53,8 +53,8 @@ impl<State: Send + Sync + 'static> Middleware<State> for SimplisticHTTPBasicAuth
             let t = cx.headers().get("Authorization").and_then(|value| {
                 let authorization = value.to_str().ok()?;
                 let (_type, credentials) = {
-                    // let _type = &_type[.._type.len() - 1];
-                    let (t, c) = authorization.split_at(authorization.find(' ')? + 1);
+                    // A trailing space is expected to be in `t`.
+                    let (t, c) = authorization.split_at(authorization.find(' ')?);
                     (t.trim(), c.trim())
                 };
                 if _type.eq_ignore_ascii_case("Basic") {
@@ -65,7 +65,7 @@ impl<State: Send + Sync + 'static> Middleware<State> for SimplisticHTTPBasicAuth
             });
             match t {
                 Some(ref credentials) if self.authenticate(credentials) => {
-                    trace!("An request is authenticated with {}", credentials);
+                    trace!("An request is authenticated with {} .", credentials);
                     next.run(cx).await
                 }
                 _ => self.unauthorized(),
@@ -73,12 +73,3 @@ impl<State: Send + Sync + 'static> Middleware<State> for SimplisticHTTPBasicAuth
         })
     }
 }
-
-// unimplemented!();
-// let mut res = next.run(cx).await;
-// let headers = res.headers_mut();
-// for (key, value) in self.headers.iter() {
-//     trace!("add default: {} {:?}", &key, &value);
-//     headers.entry(key).unwrap().or_insert_with(|| value.clone());
-// }
-//

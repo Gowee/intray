@@ -214,7 +214,7 @@ impl Drop for PendingFile {
         // synchronously remove the file if it is not taked by `cancel`
         // TODO: Is it really dropped & closed here?
         if let Some(_) = self.handle.take() {
-            debug!(
+            trace!(
                 "Synchronously remove the file: {}, result: {:?}",
                 self.path.to_str().unwrap_or("INVALID_ENCODING_IN_PATH"),
                 remove_file(&self.path)
@@ -275,7 +275,9 @@ impl FileQueue {
                     );
                 }
             }
-            debug!("Pending files: {}.", file_queue.pending_files.len());
+            if file_queue.pending_files.len() > 0 {
+                debug!("Pending files: {}.", file_queue.pending_files.len());
+            }
             // the lock to file_queue gets released hereinafter
         }
         let count = expired.len();
@@ -322,12 +324,12 @@ impl FileQueue {
         if let Some(dqkey) = dqkey.take() {
             // if no others have disabled the expiration
             self.expirations.remove(&dqkey);
-            debug!(
+            trace!(
                 "File {} acquired with expiration disabled.",
                 token.to_hyphenated()
             );
         } else {
-            debug!(
+            trace!(
                 "File {} acquired, expiration has already been disabled.",
                 token.to_hyphenated()
             );
@@ -345,10 +347,10 @@ impl FileQueue {
             let ref_count = Arc::strong_count(file);
             if ref_count == 1 {
                 *dqkey = Some(self.expirations.insert(token, EXPIRATION_INTERVAL));
-                debug!("File {} released.", token.to_hyphenated());
+                trace!("File {} released.", token.to_hyphenated());
                 Ok(true)
             } else {
-                debug!(
+                trace!(
                     "File {} not released with {} references holden.",
                     token.to_hyphenated(),
                     ref_count
