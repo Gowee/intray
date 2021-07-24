@@ -15,7 +15,7 @@ use structopt::{
 #[structopt(global_settings(&[ColoredHelp, DeriveDisplayOrder]))]
 pub struct Opt {
     /// IP address to bind on
-    #[structopt(short = "a", long = "ip-addr", default_value = "::")]
+    #[structopt(short = "a", long = "ip-addr", default_value = "0.0.0.0")]
     ip_addr: IpAddr,
 
     /// Directory to store received files
