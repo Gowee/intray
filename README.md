@@ -42,11 +42,11 @@ ARGS:
 
 **Upload without name**
 
-`curl -X post --data-binary @FILENAME http://HOSTNAME:PORT/upload/full`
+`curl -X POST --data-binary @FILENAME http://HOSTNAME:PORT/upload/full`
 
 **Upload with name**
 
-`curl -X post --data-binary @FILENAME http://HOSTNAME:PORT/upload/full/FILENAME`
+`curl -X POST --data-binary @FILENAME http://HOSTNAME:PORT/upload/full/FILENAME`
 
 ### Web UI
 ![A screenshot of Web UI](Screenshot.png)
